@@ -30,6 +30,7 @@ site_description = "Hint-based runtime converters."
 site_author = "Yael Balbastre"
 
 site_url = "https://bagofseeds.github.io/bagof-converters/"
+repo_url = "https://github.com/bagofseeds/bagof-converters"
 
 copyright = """
 Copyright &copy; 2026 The authors
