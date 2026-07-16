@@ -6,7 +6,6 @@ import typing_extensions as tx
 from bagof.converters import common
 from bagof.converters.exceptions import ConversionError
 
-
 # --- ToAny ------------------------------------------------------------
 
 

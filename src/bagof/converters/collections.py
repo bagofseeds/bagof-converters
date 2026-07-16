@@ -9,9 +9,9 @@ __all__ = [
 ]
 
 # stdlib
-from functools import partial
 import inspect
 from collections import abc
+from functools import partial
 
 # dependencies
 import typing_extensions as tx

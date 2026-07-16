@@ -9,7 +9,6 @@ import typing_extensions as tx
 from bagof.converters import numbers as conv_numbers
 from bagof.converters.exceptions import ConversionError
 
-
 # --- ToNumber ---------------------------------------------------------
 
 

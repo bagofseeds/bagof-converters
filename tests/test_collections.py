@@ -9,7 +9,6 @@ from bagof.hints.typevars.co import INT, STR
 from bagof.converters import collections
 from bagof.converters.exceptions import ConversionError
 
-
 # --- ToIterable -------------------------------------------------------
 
 

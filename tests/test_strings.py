@@ -9,7 +9,6 @@ import typing_extensions as tx
 from bagof.converters import strings
 from bagof.converters.exceptions import ConversionError
 
-
 # --- ToString ---------------------------------------------------------
 
 
