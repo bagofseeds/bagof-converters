@@ -1,16 +1,24 @@
-# bagof-things
+# bagof-converters
 
-Template repository for `bagof` Python projects.
+Hint-based converters that operate at runtime.
 
-This template includes:
+## Example
 
-- a `pyproject.toml` configured for a `bagof.things` package
-- a `bagof` namespace package under `src/`
-- reusable GitHub Actions for linting, testing, and publishing
-
-The workflow wrappers intentionally track `bagofseeds/actions@main` so
-template-generated repositories inherit shared CI updates without manually
-refreshing pinned workflow SHAs.
-
-When using the template, replace `things` with your project-specific package
-name.
+```pycon
+>>> from bagof.converters import get_converter
+>>> convert = get_converter(list[int])
+>>> convert(range(3))
+[0, 1, 2]
+>>> convert(1)
+ValueConversionError: ToSequence(list[int]): Invalid value.
+|> value = 1
+>>> convert(["a", "b", "c"])
+ValueConversionError: ToNumber(<class 'int'>): Invalid value.
+|> value = 'a'
+The above exception was the direct cause of the following exception:
+ValueConversionError: ToSequence(list[int]): Invalid value.
+|> value = 'a'
+The above exception was the direct cause of the following exception:
+ValueConversionError: ToSequence(list[int]): Invalid value.
+|> value = <map object at 0x72fb38570cd0>
+```

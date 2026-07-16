@@ -352,7 +352,7 @@ def _trywrap_converter(
             return converter(value)
         except (TypeError, ValueError) as e:
             _error = error
-            if safe_issubclass(_error, Exception):
+            if callable(_error):
                 _error = _error(value)
             raise _error from e
     return wrapped

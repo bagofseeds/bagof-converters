@@ -9,6 +9,7 @@ __all__ = [
 ]
 
 # stdlib
+from functools import partial
 import inspect
 from collections import abc
 
@@ -155,7 +156,8 @@ def _to_sequence(
 
     if args:
         converter = wrapper(Converter.get(args[0]))
-        value = map(converter, value)
+        mapped_converter = wrapper(partial(map, converter))
+        value = mapped_converter(value)
 
     if safe_issubclass(input_type, origin):
         output_type = input_type
