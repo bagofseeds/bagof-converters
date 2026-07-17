@@ -7,11 +7,11 @@ import typing_extensions as tx
 from .base import Converter
 
 if tx.TYPE_CHECKING:
-    from bagof.hints.typevars.co import DTYPE
+    from bagof.hints.numpy.typevars.co import DTYPE
     from numpy import dtype, generic
 else:
     try:
-        from bagof.hints.typevars.co import DTYPE
+        from bagof.hints.numpy.typevars.co import DTYPE
         from numpy import dtype, generic
     except ImportError:  # pragma: no cover
         dtype = generic = None  # type: ignore[assignment]
