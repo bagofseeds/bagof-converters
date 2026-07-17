@@ -24,6 +24,7 @@ from bagof.core.magic import (
     get_args_uw,
     get_origin_uw,
     issubscriptable,
+    safe_isinstance,
     safe_issubclass,
 )
 from bagof.hints.typevars.co import ITERABLE, MAPPING, SEQUENCE, TUPLE
@@ -90,24 +91,41 @@ def _like_iterable(hint: tx.Any, __reentrant: tuple = ()) -> tx.Any:
 def _to_iterable(
     value: tx.Any, hint: tx.Any, fallback: tx.Any, wrapper: tx.Callable
 ) -> tx.Any:
-    input_type = type(value)
     origin = get_origin_uw(hint)
     args = get_args_uw(hint)
+
+    # Already a valid instance and no element conversion to do: pass it
+    # through unchanged. Rebuilding would needlessly copy a container, and
+    # would fail outright on a single-pass iterator (a generator cannot be
+    # reconstructed from itself).
+    if not args and safe_isinstance(value, origin):
+        return value
+
+    input_type = type(value)
+    # A single-pass iterator (generator, map, zip, ...) yields itself from
+    # ``__iter__`` and so cannot be rebuilt from its own contents; it can
+    # never be the output container type.
+    one_shot = safe_isinstance(value, abc.Iterator)
 
     if args:
         arg_converter = wrapper(Converter.get(args[0]))
         value = map(arg_converter, value)
 
-    if safe_issubclass(input_type, origin):
+    if (
+        not one_shot
+        and not inspect.isabstract(input_type)
+        and safe_issubclass(input_type, origin)
+    ):
         output_type = input_type
     else:
         output_type = fallback
 
-    if not inspect.isabstract(output_type):
-        output_type = wrapper(output_type)
-        return output_type(value)
+    if inspect.isabstract(output_type):
+        # An abstract fallback (e.g. ``abc.Iterable``) has no constructor, so
+        # return the value as-is -- lazily, when elements are being mapped.
+        return value
 
-    return value
+    return wrapper(output_type)(value)
 
 
 # --- Sequence ---------------------------------------------------------
@@ -152,16 +170,24 @@ def _like_sequence(hint: tx.Any, __reentrant: tuple = ()) -> tx.Any:
 def _to_sequence(
     value: tx.Any, hint: tx.Any, fallback: tx.Any, wrapper: tx.Callable
 ) -> tx.Any:
-    input_type = type(value)
     origin = get_origin_uw(hint)
     args = get_args_uw(hint)
+
+    # An already-valid sequence with nothing to convert passes through
+    # unchanged rather than being copied.
+    if not args and safe_isinstance(value, origin):
+        return value
+
+    input_type = type(value)
 
     if args:
         converter = wrapper(Converter.get(args[0]))
         mapped_converter = wrapper(partial(map, converter))
         value = mapped_converter(value)
 
-    if safe_issubclass(input_type, origin):
+    if not inspect.isabstract(input_type) and safe_issubclass(
+        input_type, origin
+    ):
         output_type = input_type
     else:
         output_type = fallback
@@ -245,9 +271,15 @@ def _like_mapping(hint: tx.Any, __reentrant: tuple = ()) -> tx.Any:
 def _to_mapping(
     value: tx.Any, hint: tx.Any, fallback: tx.Any, wrapper: tx.Callable
 ) -> tx.Any:
-    input_type = type(value)
     origin = get_origin_uw(hint)
     args = get_args_uw(hint)
+
+    # An already-valid mapping with nothing to convert passes through
+    # unchanged rather than being copied.
+    if not args and safe_isinstance(value, origin):
+        return value
+
+    input_type = type(value)
 
     if args:
         key_converter = wrapper(Converter.get(args[0]))
@@ -256,7 +288,9 @@ def _to_mapping(
             value = value.items()
         value = {key_converter(k): val_converter(v) for k, v in value}
 
-    if safe_issubclass(input_type, origin):
+    if not inspect.isabstract(input_type) and safe_issubclass(
+        input_type, origin
+    ):
         output_type = input_type
     else:
         output_type = fallback

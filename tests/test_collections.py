@@ -1,3 +1,6 @@
+# stdlib
+from collections import abc
+
 # dependencies
 import pytest
 import typing_extensions as tx
@@ -218,3 +221,89 @@ def test_mutable_set_is_mutable() -> None:
 )
 def test_set_registration(hint: tx.Any, cls: tx.Any) -> None:
     assert collections.Converter.get_class(hint) is cls
+
+
+# --- passthrough & one-shot iterators ---------------------------------
+
+
+@pytest.mark.parametrize(
+    "hint,value",
+    [
+        (list, [1, 2, 3]),
+        (tuple, (1, 2, 3)),
+        (dict, {"a": 1}),
+        (set, {1, 2}),
+        (frozenset, frozenset({1, 2})),
+        (tx.MutableSequence, [1, 2]),
+        (tx.Sequence, [1, 2]),
+        (tx.Iterable, [1, 2]),
+        (tx.Mapping, {"a": 1}),
+        (tx.AbstractSet, frozenset({1, 2})),
+    ],
+)
+def test_already_valid_passes_through_unchanged(
+    hint: tx.Any, value: tx.Any
+) -> None:
+    # An input that already satisfies the (unparametrised) hint must be
+    # returned as-is, never copied.
+    result = collections.Converter.get(hint)(value)
+    assert result is value
+
+
+def test_bare_iterable_passes_a_generator_through() -> None:
+    # Regression: this used to raise (a generator cannot be rebuilt from
+    # itself).
+    gen = (i for i in range(3))
+    result = collections.Converter.get(abc.Iterable)(gen)
+    assert result is gen
+    assert list(result) == [0, 1, 2]
+
+
+@pytest.mark.parametrize(
+    "factory",
+    [
+        lambda: (i for i in range(3)),
+        lambda: map(int, ["0", "1", "2"]),
+        lambda: zip(range(3), range(3)),
+        lambda: filter(None, range(3)),
+    ],
+)
+def test_bare_iterable_accepts_any_one_shot_iterator(
+    factory: tx.Any,
+) -> None:
+    value = factory()
+    assert collections.Converter.get(abc.Iterable)(value) is value
+
+
+def test_typed_iterable_over_generator_is_lazy() -> None:
+    # ``Iterable[int]`` maps lazily and does not consume the source until
+    # the result is iterated.
+    consumed = []
+
+    def source() -> tx.Iterator[str]:
+        for i in range(3):
+            consumed.append(i)
+            yield str(i)
+
+    result = collections.Converter.get(tx.Iterable[int])(source())
+    assert consumed == []  # nothing consumed yet
+    assert list(result) == [0, 1, 2]
+    assert consumed == [0, 1, 2]
+
+
+@pytest.mark.parametrize(
+    "hint,value,expected_type,expected",
+    [
+        # concrete targets materialise a one-shot iterator
+        (tx.List[int], (i for i in ["1", "2"]), list, [1, 2]),
+        (tx.Set[int], (i for i in ["1", "2"]), set, {1, 2}),
+        (list, (i for i in range(3)), list, [0, 1, 2]),
+        (tuple, [1, 2, 3], tuple, (1, 2, 3)),
+    ],
+)
+def test_conversion_still_builds_concrete_containers(
+    hint: tx.Any, value: tx.Any, expected_type: type, expected: tx.Any
+) -> None:
+    result = collections.Converter.get(hint)(value)
+    assert type(result) is expected_type
+    assert result == expected
