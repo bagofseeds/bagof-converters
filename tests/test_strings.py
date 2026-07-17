@@ -17,6 +17,10 @@ from bagof.converters.exceptions import ConversionError
     [
         ("hello", "hello"),
         ("", ""),
+        # Bytes are decoded (`like` advertises `Union[str, bytes]`).
+        (b"hello", "hello"),
+        (b"", ""),
+        ("héllo".encode(), "héllo"),
     ],
 )
 def test_to_str_valid(value: tx.Any, expected: str) -> None:
@@ -26,12 +30,28 @@ def test_to_str_valid(value: tx.Any, expected: str) -> None:
 
 @pytest.mark.parametrize(
     "value",
-    [1, None, [1, 2], {"a": 1}],
+    [1, None, [1, 2], {"a": 1}, bytearray(b"ab")],
 )
 def test_to_str_invalid(value: tx.Any) -> None:
     converter = strings.ToString()
     with pytest.raises(ConversionError):
         converter(value)
+
+
+def test_to_str_decodes_bytes() -> None:
+    # Regression: the guard read `not isinstance(v, str) or isinstance(v,
+    # bytes)`, which raised for *every* bytes input and left the decoding
+    # branch below it unreachable.
+    result = strings.ToString()(b"hello")
+    assert result == "hello"
+    assert type(result) is str
+
+
+def test_to_str_accepts_what_like_advertises() -> None:
+    # `like` promises str and bytes; `__call__` must honour both.
+    assert strings.ToString().like() == tx.Union[str, bytes]
+    strings.ToString()("hello")
+    strings.ToString()(b"hello")
 
 
 # --- ToRegexMatch -----------------------------------------------------
@@ -50,6 +70,35 @@ def test_regex_match_valid(
 ) -> None:
     converter = strings.ToRegexMatch(pattern)
     assert converter(value) == value
+
+
+@pytest.mark.parametrize(
+    "pattern,value,expected",
+    [
+        (r"\d+", b"123", "123"),
+        (r"[a-z]+", b"abc", "abc"),
+    ],
+)
+def test_regex_match_decodes_bytes(
+    pattern: tx.Union[str, re.Pattern], value: bytes, expected: str
+) -> None:
+    # `ToRegexMatch` matches against the decoded string, inherited from
+    # `ToString`.
+    converter = strings.ToRegexMatch(pattern)
+    assert converter(value) == expected
+
+
+def test_regex_match_invalid_bytes() -> None:
+    converter = strings.ToRegexMatch(r"\d+")
+    with pytest.raises(ConversionError):
+        converter(b"abc")
+
+
+def test_annotated_regex_decodes_bytes() -> None:
+    from bagof.converters.common import ToAnnotated
+
+    hint = tx.Annotated[str, re.compile(r"\d+")]
+    assert ToAnnotated(hint)(b"42") == "42"
 
 
 @pytest.mark.parametrize(

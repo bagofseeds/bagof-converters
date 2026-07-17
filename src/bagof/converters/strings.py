@@ -60,7 +60,7 @@ def _to_str(
     origin = get_origin_uw(hint)
 
     # Fail for non-string-like values
-    if not safe_isinstance(value, str) or safe_isinstance(value, bytes):
+    if not (safe_isinstance(value, str) or safe_isinstance(value, bytes)):
         raise type_error
 
     # Decode bytes
