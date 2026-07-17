@@ -1,7 +1,10 @@
 pytest>=7
-# Optional runtime dependencies, exercised by the numpy / pandas converters.
-# Both install on a CPU runner. numpy is listed explicitly (rather than
-# relying on pandas to pull it in) so the numpy converter is tested even if
-# pandas is ever dropped.
+# Optional runtime dependencies, exercised by the numpy / pandas / dask
+# converters. All install on a CPU runner. numpy is listed explicitly
+# (rather than relying on pandas/dask to pull it in) so the numpy converter
+# is tested even if the others are ever dropped. cupy is deliberately
+# absent: it needs a CUDA toolchain and cannot run on a CPU runner, so its
+# converter is type-checked only.
 numpy
 pandas
+dask[array]
