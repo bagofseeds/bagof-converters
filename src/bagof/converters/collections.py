@@ -3,6 +3,8 @@
 __all__ = [
     "ToIterable",
     "ToSequence",
+    "ToSet",
+    "ToMutableSet",
     "ToMapping",
     "ToTuple",
     "ToLength",
@@ -165,6 +167,31 @@ def _to_sequence(
         output_type = fallback
     output_type = wrapper(output_type)
     return output_type(value)
+
+
+# --- Set --------------------------------------------------------------
+
+
+class ToSet(ToIterable, register=abc.Set):
+    """
+    Converter for [`abc.Set`][collections.abc.Set].
+
+    Sets convert element-wise like any other iterable; the only difference
+    from [`ToIterable`][bagof.converters.collections.ToIterable] is the
+    concrete fallback, so that an abstract ``Set[int]`` hint still produces
+    a real container ([`frozenset`][], since ``abc.Set`` is immutable)
+    rather than a bare iterator.
+    """
+
+    DEFAULT = abc.Set
+    FALLBACK = frozenset
+
+
+class ToMutableSet(ToSet, register=abc.MutableSet):
+    """Converter for [`abc.MutableSet`][collections.abc.MutableSet]."""
+
+    DEFAULT = abc.MutableSet
+    FALLBACK = set
 
 
 # --- Mapping ----------------------------------------------------------

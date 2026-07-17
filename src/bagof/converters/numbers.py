@@ -2,6 +2,7 @@
 
 __all__ = [
     "ToNumber",
+    "ToBool",
     "ToPositive",
     "ToNegative",
     "ToNonNegative",
@@ -94,6 +95,41 @@ class ToNumber(Converter[NUMBER, tx.Any], register=numbers.Number):
         except (ValueError, TypeError):
             pass
         return None
+
+
+# --- Bool -------------------------------------------------------------
+
+
+class ToBool(ToNumber[bool], register=bool):
+    """
+    Converter for [`bool`][].
+
+    Strings are parsed by spelling rather than by truthiness -- ``"false"``,
+    ``"0"``, ``"no"`` and the like become `False`, not `True` (which is what
+    plain [`bool`][] does with any non-empty string). Unrecognised strings
+    raise, rather than defaulting to `True`.
+    """
+
+    DEFAULT = bool
+    TRUE_STRINGS = frozenset({"true", "t", "yes", "y", "on", "1"})
+    FALSE_STRINGS = frozenset({"false", "f", "no", "n", "off", "0", ""})
+
+    def like(self, __reentrant: tuple = ()) -> tx.Any:
+        """Accept booleans, integers and the recognised string spellings."""
+        return tx.Union[bool, int, str]
+
+    def __call__(self, value: tx.Any) -> bool:
+        """Convert the value to a bool."""
+        if safe_isinstance(value, str):
+            key = value.strip().lower()
+            if key in self.FALSE_STRINGS:
+                return False
+            if key in self.TRUE_STRINGS:
+                return True
+            raise self.value_error(
+                value, f"Cannot convert {value!r} to a bool."
+            )
+        return bool(super().__call__(value))
 
 
 # --- Sign converters --------------------------------------------------

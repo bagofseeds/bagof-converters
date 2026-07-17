@@ -218,3 +218,54 @@ def test_in_range_invalid(
     converter = conv_numbers.ToInRange(mn, mx, inclusive)
     with pytest.raises(ConversionError):
         converter(value)
+
+
+# --- ToBool -----------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        # strings are parsed by spelling, not truthiness
+        ("false", False),
+        ("False", False),
+        ("FALSE", False),
+        (" no ", False),
+        ("off", False),
+        ("0", False),
+        ("f", False),
+        ("", False),
+        ("true", True),
+        ("Yes", True),
+        ("on", True),
+        ("1", True),
+        # non-strings go through numeric coercion
+        (0, False),
+        (1, True),
+        (2, True),
+        (0.0, False),
+        (True, True),
+        (False, False),
+    ],
+)
+def test_bool_valid(value: tx.Any, expected: bool) -> None:
+    result = conv_numbers.ToBool()(value)
+    assert result is expected
+
+
+@pytest.mark.parametrize("value", ["maybe", "2", "yesnt", "y e s"])
+def test_bool_invalid_strings(value: str) -> None:
+    # Unrecognised strings raise rather than defaulting to True.
+    with pytest.raises(ConversionError):
+        conv_numbers.ToBool()(value)
+
+
+def test_bool_is_registered() -> None:
+    from bagof.converters.base import Converter
+
+    assert Converter.get_class(bool) is conv_numbers.ToBool
+    assert Converter.get(bool)("no") is False
+
+
+def test_bool_like() -> None:
+    assert conv_numbers.ToBool().like() == tx.Union[bool, int, str]
