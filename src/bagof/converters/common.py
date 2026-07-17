@@ -82,11 +82,13 @@ class ToUnion(Converter[TO, FROM], register=(tx.Union, UnionType)):
 
     def like(self, __reentrant: tuple = ()) -> tx.Any:
         """Return the union of the `like` hints for each union branch."""
-        return _like_union(self.hint, __reentrant)
+        return _like_union(self.unwrapped, __reentrant)
 
     def __call__(self, value: FROM) -> TO:
         """Try each branch of the union in order; raise if none succeeds."""
-        return _to_union(value, self.hint, self._notinunion_error(value))
+        return _to_union(
+            value, self.unwrapped, self._notinunion_error(value)
+        )
 
     def _notinunion_error(self, value: tx.Any) -> TypeConversionError:
         return self.type_error(
@@ -176,10 +178,8 @@ class ToTypeVar(Converter[TO, FROM], register=tx.TypeVar):
 
     BOUND = DEFAULT = tx.TypeVar("T")
 
-    @property
-    def unwrapped(self) -> tx.Any:
-        """The unwrapped type hint (Annotated and TypeVar wrappers removed)."""
-        return unwrap(self.hint, (tx.Annotated, tx.TypeVar))
+    # `unwrapped` resolves the typevar (see `MagicHint.UNWRAP`), so this
+    # re-dispatches to the converter registered for the bound itself.
 
     def like(self, __reentrant: tuple = ()) -> tx.Any:
         """Return the `like` hint for the unwrapped TypeVar bound."""

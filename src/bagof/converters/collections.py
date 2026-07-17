@@ -54,13 +54,13 @@ class ToIterable(
 
     def like(self, __reentrant: tuple = ()) -> tx.Any:
         """Return the input hint for this converter."""
-        return _like_iterable(self.hint, __reentrant)
+        return _like_iterable(self.unwrapped, __reentrant)
 
     def __call__(self, value: tx.Any) -> ITERABLE:
         """Convert the value to an iterable, converting each element."""
         return _to_iterable(
             value,
-            self.hint,
+            self.unwrapped,
             self.fallback,
             self._wrap_converter,
         )
@@ -121,13 +121,13 @@ class ToSequence(
 
     def like(self, __reentrant: tuple = ()) -> tx.Any:
         """Return the input hint for this converter."""
-        return _like_sequence(self.hint, __reentrant)
+        return _like_sequence(self.unwrapped, __reentrant)
 
     def __call__(self, value: tx.Any) -> SEQUENCE:
         """Convert the value to a sequence, converting each element."""
         return _to_sequence(
             value,
-            self.hint,
+            self.unwrapped,
             self.fallback,
             self._wrap_converter,
         )
@@ -180,13 +180,13 @@ class ToMapping(
 
     def like(self, __reentrant: tuple = ()) -> tx.Any:
         """Return the input hint for this converter."""
-        return _like_mapping(self.hint, __reentrant)
+        return _like_mapping(self.unwrapped, __reentrant)
 
     def __call__(self, value: tx.Any) -> MAPPING:
         """Convert the value to a mapping, converting each key and value."""
         return _to_mapping(
             value,
-            self.hint,
+            self.unwrapped,
             self.fallback,
             self._wrap_converter,
         )
@@ -247,14 +247,14 @@ class ToTuple(Converter[TUPLE, tx.Any], register=tuple):
 
     def like(self, __reentrant: tuple = ()) -> tx.Any:
         """Return the input hint for this converter."""
-        return _like_tuple(self.hint, __reentrant)
+        return _like_tuple(self.unwrapped, __reentrant)
 
     def __call__(self, value: tx.Any) -> TUPLE:
         """Convert the value to a tuple, converting each element."""
-        args = get_args_uw(self.hint)
+        args = self.args
         return _to_tuple(
             value,
-            self.hint,
+            self.unwrapped,
             self.fallback,
             self._wrap_converter,
             self._length_error(value, len(args)),

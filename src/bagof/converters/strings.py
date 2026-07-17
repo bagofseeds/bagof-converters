@@ -35,7 +35,7 @@ class ToString(Converter[STR, tx.Any], register=str):
         """Convert the value to a string."""
         return _to_str(
             value,
-            self.hint,
+            self.unwrapped,
             self.fallback,
             self._wrap_converter,
             self._nostrlike_error(value),
