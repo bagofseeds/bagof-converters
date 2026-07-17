@@ -21,7 +21,7 @@ import numbers
 import typing_extensions as tx
 
 # bags
-from bagof.core.magic import UNSET, safe_isinstance, safe_issubclass, unwrap
+from bagof.core.magic import UNSET, safe_isinstance, safe_issubclass
 from bagof.hints.typevars.co import NUMBER
 
 # locals
@@ -46,8 +46,7 @@ class ToNumber(Converter[NUMBER, tx.Any], register=numbers.Number):
         if not __reentrant:
             return self.hint
 
-        hint = unwrap(self.hint)
-        fallback = unwrap(hint, tx.TypeVar)
+        fallback = self.unwrapped
         if np is not None:
             if safe_issubclass(fallback, numbers.Integral):
                 return tx.Union[numbers.Integral, np.integer, np.bool_]
