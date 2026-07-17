@@ -80,3 +80,67 @@ def test_dtype_like() -> None:
 @pytest.mark.parametrize("hint", [np.dtype, np.generic])
 def test_dtype_is_registered(hint: tx.Any) -> None:
     assert Converter.get_class(hint) is converters_numpy.ToDType
+
+
+# --- ToNDArray --------------------------------------------------------
+
+NDArray = pytest.importorskip("bagof.hints.numpy").NDArray
+
+
+def test_ndarray_from_list() -> None:
+    result = converters_numpy.ToNDArray()([1, 2, 3])
+    assert isinstance(result, np.ndarray)
+    assert result.tolist() == [1, 2, 3]
+
+
+def test_ndarray_passthrough_preserves_identity() -> None:
+    arr = np.array([1.0, 2.0])
+    assert converters_numpy.ToNDArray()(arr) is arr
+
+
+@pytest.mark.parametrize(
+    "scalar,value,expected_dtype",
+    [
+        (np.float64, [1, 2, 3], "float64"),
+        (np.int32, [1.9, 2.9], "int32"),
+        (float, [1, 2], "float64"),      # python type -> np.floating
+        (int, [1.5, 2.5], None),          # np.integer -> default int
+        (np.complex128, [1, 2], "complex128"),
+    ],
+)
+def test_ndarray_dtype_coercion(
+    scalar: tx.Any, value: tx.Any, expected_dtype: tx.Any
+) -> None:
+    result = Converter.get(NDArray[scalar])(value)
+    assert isinstance(result, np.ndarray)
+    if expected_dtype is not None:
+        assert result.dtype == np.dtype(expected_dtype)
+    else:
+        # python ``int`` maps to np.integer -> the platform default int
+        assert np.issubdtype(result.dtype, np.integer)
+
+
+def test_ndarray_reinterprets_subclass() -> None:
+    class MyArray(np.ndarray):
+        pass
+
+    result = Converter.get(MyArray)([1, 2, 3])
+    assert isinstance(result, MyArray)
+
+
+def test_ndarray_dtype_already_correct_is_kept() -> None:
+    arr = np.array([1, 2, 3], dtype=np.float64)
+    result = Converter.get(NDArray[np.float64])(arr)
+    assert result.dtype == np.dtype("float64")
+    # already an ndarray of the right dtype -> not copied
+    assert result is arr
+
+
+def test_ndarray_like() -> None:
+    from bagof.hints.array import ArrayLike
+
+    assert converters_numpy.ToNDArray().like() is ArrayLike
+
+
+def test_ndarray_is_registered() -> None:
+    assert Converter.get_class(np.ndarray) is converters_numpy.ToNDArray

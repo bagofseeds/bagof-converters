@@ -9,6 +9,10 @@ collections
     Converters for collection types (list, tuple, dict, etc.).
 common
     Common converters (any, union, etc.).
+cupy
+    Converters for cupy array types.
+dask
+    Converters for dask array types.
 enums
     Converters for enumeration types.
 exceptions
@@ -28,6 +32,8 @@ __all__ = [
     "base",
     "collections",
     "common",
+    "cupy",
+    "dask",
     "enums",
     "exceptions",
     "numbers",
@@ -45,6 +51,8 @@ from . import (
     base,
     collections,
     common,
+    cupy,
+    dask,
     enums,
     exceptions,
     numbers,
@@ -58,6 +66,10 @@ from .collections import *  # noqa: F401, F403
 from .collections import __all__ as __all_collections
 from .common import *  # noqa: F401, F403
 from .common import __all__ as __all_common
+from .cupy import *  # noqa: F401, F403
+from .cupy import __all__ as __all_cupy
+from .dask import *  # noqa: F401, F403
+from .dask import __all__ as __all_dask
 from .enums import *  # noqa: F401, F403
 from .enums import __all__ as __all_enums
 from .exceptions import *  # noqa: F401, F403
@@ -74,6 +86,8 @@ from .strings import __all__ as __all_strings
 __all__ += __all_base
 __all__ += __all_collections
 __all__ += __all_common
+__all__ += __all_cupy
+__all__ += __all_dask
 __all__ += __all_enums
 __all__ += __all_exceptions
 __all__ += __all_numbers

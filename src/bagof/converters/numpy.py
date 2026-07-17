@@ -4,17 +4,22 @@ __all__: list = []
 import typing_extensions as tx
 
 # locals
+from ._arrays import ArrayConverter
 from .base import Converter
 
 if tx.TYPE_CHECKING:
+    import numpy as np
+    from bagof.hints.numpy import ndarray as _hint_ndarray
     from bagof.hints.numpy.typevars.co import DTYPE
     from numpy import dtype, generic
 else:
     try:
+        import numpy as np
+        from bagof.hints.numpy import ndarray as _hint_ndarray
         from bagof.hints.numpy.typevars.co import DTYPE
         from numpy import dtype, generic
     except ImportError:  # pragma: no cover
-        dtype = generic = None  # type: ignore[assignment]
+        np = _hint_ndarray = dtype = generic = None  # type: ignore[assignment]
 
 if tx.TYPE_CHECKING or dtype is not None:
 
@@ -48,4 +53,12 @@ if tx.TYPE_CHECKING or dtype is not None:
                     value, f"Cannot convert value to dtype {target}"
                 ) from e
 
-    __all__ += ["ToDType"]
+    class ToNDArray(ArrayConverter, register=(np.ndarray, _hint_ndarray)):
+        """Converter for [`numpy.ndarray`][]."""
+
+        DEFAULT = np.ndarray
+        ARRAY = SCALARS = np
+        ARRAY_TYPE = np.ndarray
+        HINT_TYPE = _hint_ndarray
+
+    __all__ += ["ToDType", "ToNDArray"]
