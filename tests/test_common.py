@@ -107,3 +107,40 @@ def test_annotated_valid(
 ) -> None:
     converter = common.ToAnnotated(hint)
     assert converter(value) == expected
+
+
+# --- ToType -----------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "hint,value",
+    [
+        (type, int),
+        (type, object),
+        (tx.Type[int], int),
+        (tx.Type[int], bool),  # bool is a subclass of int
+        (tx.Type[object], str),
+    ],
+)
+def test_type_valid(hint: tx.Any, value: tx.Any) -> None:
+    assert common.ToType(hint)(value) is value
+
+
+@pytest.mark.parametrize(
+    "hint,value",
+    [
+        (type, 3),          # not a type
+        (type, "int"),      # not a type
+        (tx.Type[int], str),   # not a subclass of int
+        (tx.Type[int], object),
+    ],
+)
+def test_type_invalid(hint: tx.Any, value: tx.Any) -> None:
+    with pytest.raises(ConversionError):
+        common.ToType(hint)(value)
+
+
+def test_type_is_registered() -> None:
+    from bagof.converters.base import Converter
+
+    assert Converter.get_class(type) is common.ToType

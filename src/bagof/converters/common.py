@@ -3,6 +3,7 @@
 __all__ = [
     "ToAny",
     "ToNone",
+    "ToType",
     "ToUnion",
     "ToLiteral",
     "ToTypeVar",
@@ -62,6 +63,31 @@ class ToNone(Converter[NONE, tx.Any], register=NoneType):
         """Return the value if it is None, otherwise raise a TypeError."""
         if value is not None:
             raise self.type_error(value, "Value is not None")
+        return value  # type: ignore[return-value]
+
+
+# --- Type -------------------------------------------------------------
+
+
+class ToType(Converter[TO, FROM], register=type):
+    """
+    Converter for [`type`][] and [`Type[T]`][typing.Type].
+
+    This is a *validating* converter: it does not coerce, it checks that the
+    value is a class (and, for `Type[T]`, a subclass of `T`).
+    """
+
+    DEFAULT = type
+
+    def __call__(self, value: FROM) -> TO:
+        """Return the value if it is a (sufficiently specific) type."""
+        if not isinstance(value, type):
+            raise self.type_error(value, "Value is not a type.")
+        args = self.args
+        if args and not safe_issubclass(value, args[0]):
+            raise self.value_error(
+                value, f"Value is not a subclass of {args[0]!r}."
+            )
         return value  # type: ignore[return-value]
 
 

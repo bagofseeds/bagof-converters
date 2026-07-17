@@ -175,3 +175,46 @@ def test_length_invalid(length: int, hint: tx.Any, value: tx.Any) -> None:
     converter = collections.ToLength(length, hint)
     with pytest.raises((ConversionError, TypeError, ValueError)):
         converter(value)
+
+
+# --- ToSet / ToMutableSet ---------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "hint,value,expected",
+    [
+        # abstract set hints still yield a concrete container...
+        (tx.AbstractSet[int], ["1", "2"], frozenset({1, 2})),
+        (tx.AbstractSet[int], (1, 2, 2), frozenset({1, 2})),
+        (tx.MutableSet[int], ["1", "2"], {1, 2}),
+        # ... and elements are converted, like any iterable
+        (tx.FrozenSet[int], ["1", "2"], frozenset({1, 2})),
+        (tx.Set[int], ["1", "2"], {1, 2}),
+    ],
+)
+def test_set_valid(hint: tx.Any, value: tx.Any, expected: tx.Any) -> None:
+    result = collections.Converter.get(hint)(value)
+    assert result == expected
+    assert type(result) is type(expected)
+
+
+def test_abstract_set_is_frozen_by_default() -> None:
+    # abc.Set is immutable, so its concrete fallback is frozenset.
+    result = collections.Converter.get(tx.AbstractSet[int])([1, 2])
+    assert isinstance(result, frozenset)
+
+
+def test_mutable_set_is_mutable() -> None:
+    result = collections.Converter.get(tx.MutableSet[int])([1, 2])
+    assert isinstance(result, set) and not isinstance(result, frozenset)
+
+
+@pytest.mark.parametrize(
+    "hint,cls",
+    [
+        (tx.AbstractSet, collections.ToSet),
+        (tx.MutableSet, collections.ToMutableSet),
+    ],
+)
+def test_set_registration(hint: tx.Any, cls: tx.Any) -> None:
+    assert collections.Converter.get_class(hint) is cls
