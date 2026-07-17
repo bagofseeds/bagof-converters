@@ -1,1 +1,7 @@
 pytest>=7
+# Optional runtime dependencies, exercised by the numpy / pandas converters.
+# Both install on a CPU runner. numpy is listed explicitly (rather than
+# relying on pandas to pull it in) so the numpy converter is tested even if
+# pandas is ever dropped.
+numpy
+pandas

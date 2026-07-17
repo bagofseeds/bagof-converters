@@ -17,6 +17,8 @@ numbers
     Converters for numeric types (int, float, etc.).
 numpy
     Converters for numpy types (dtype, etc.).
+pandas
+    Converters for pandas types (DataFrame, Series).
 strings
     Converters for string types (str, bytes, etc.).
 """
@@ -30,6 +32,7 @@ __all__ = [
     "exceptions",
     "numbers",
     "numpy",
+    "pandas",
     "strings",
 ]
 
@@ -46,6 +49,7 @@ from . import (
     exceptions,
     numbers,
     numpy,
+    pandas,
     strings,
 )
 from .base import *  # noqa: F401, F403
@@ -62,6 +66,8 @@ from .numbers import *  # noqa: F401, F403
 from .numbers import __all__ as __all_numbers
 from .numpy import *  # noqa: F401, F403
 from .numpy import __all__ as __all_numpy
+from .pandas import *  # noqa: F401, F403
+from .pandas import __all__ as __all_pandas
 from .strings import *  # noqa: F401, F403
 from .strings import __all__ as __all_strings
 
@@ -72,4 +78,5 @@ __all__ += __all_enums
 __all__ += __all_exceptions
 __all__ += __all_numbers
 __all__ += __all_numpy
+__all__ += __all_pandas
 __all__ += __all_strings
