@@ -10,9 +10,11 @@ nav = [
     {"base" = "api/base.md"},
     {"collections" = "api/collections.md"},
     {"common" = "api/common.md"},
+    {"enums" = "api/enums.md"},
     {"exceptions" = "api/exceptions.md"},
     {"numbers" = "api/numbers.md"},
     {"numpy" = "api/numpy.md"},
+    {"pandas" = "api/pandas.md"},
     {"strings" = "api/strings.md"},
   ]}
 ]
