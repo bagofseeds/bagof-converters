@@ -78,10 +78,11 @@ class Converter(
     They are registered in a global registry and looked up by type hint.
 
     !!! note
-        When a value cannot be converted, a [`ConversionError`][] is
-        raised. It subclasses both [`ValueError`][] and [`TypeError`][],
-        so callers that already catch those still catch conversion
-        failures.
+        Failed conversions raise a [`ConversionError`][]. Its concrete
+        subclasses -- [`ValueConversionError`][] (also a [`ValueError`][])
+        and [`TypeConversionError`][] (also a [`TypeError`][]) -- inherit
+        the matching builtin, so callers that already catch `ValueError`
+        or `TypeError` still catch conversion failures.
     """
 
     DEFAULT = tx.Any
