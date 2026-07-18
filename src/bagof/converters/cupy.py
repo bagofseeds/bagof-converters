@@ -9,6 +9,9 @@ import typing_extensions as tx
 from ._arrays import ArrayConverter
 
 if tx.TYPE_CHECKING:
+    # Import the bare module so mkdocstrings resolves the `cupy.*`
+    # cross-references in the docstrings below. Type-checking only.
+    import cupy  # noqa: F401
     import cupy as cp
     from bagof.hints.cupy import ndarray as _hint_ndarray
 else:

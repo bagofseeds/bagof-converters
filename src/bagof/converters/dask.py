@@ -9,6 +9,9 @@ import typing_extensions as tx
 from ._arrays import ArrayConverter
 
 if tx.TYPE_CHECKING:
+    # Import the bare module so mkdocstrings resolves the `dask.array.*`
+    # cross-references in the docstrings below. Type-checking only.
+    import dask.array  # noqa: F401
     import dask.array as da
     import numpy as np
     from bagof.hints.dask import Array as _hint_array
