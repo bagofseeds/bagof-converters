@@ -31,7 +31,18 @@ from .base import Converter, _process_reentrant, _trywrap_converter
 
 
 class ToNumber(Converter[NUMBER, tx.Any], register=numbers.Number):
-    """Converter for [`numbers.Number`][] types."""
+    """
+    Converter for [`numbers.Number`][] types.
+
+    !!! example
+        ```pycon
+        >>> from bagof.converters import get_converter
+        >>> get_converter(int)("42")
+        42
+        >>> get_converter(float)("1.5")
+        1.5
+        ```
+    """
 
     DEFAULT = numbers.Number
     FALLBACKS = {

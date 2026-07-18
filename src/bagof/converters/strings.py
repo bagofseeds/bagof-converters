@@ -22,7 +22,16 @@ from .exceptions import TypeConversionError
 
 
 class ToString(Converter[STR, tx.Any], register=str):
-    """Converter for [`str`][]."""
+    """
+    Converter for [`str`][].
+
+    !!! example
+        ```pycon
+        >>> from bagof.converters import get_converter
+        >>> get_converter(str)(b"hello")
+        'hello'
+        ```
+    """
 
     DEFAULT = str
     FALLBACK = str
