@@ -235,6 +235,16 @@ class Converter(
         """
         Get the best-matching converter for a given type hint.
 
+        !!! example
+            ```pycon
+            >>> from bagof.converters import get_converter
+            >>> convert = get_converter(list[int])
+            >>> convert(["1", "2", "3"])
+            [1, 2, 3]
+            >>> get_converter(dict[str, int])({"a": "1", "b": "2"})
+            {'a': 1, 'b': 2}
+            ```
+
         Parameters
         ----------
         hint

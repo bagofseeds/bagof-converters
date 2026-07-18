@@ -95,7 +95,21 @@ class ToType(Converter[TO, FROM], register=type):
 
 
 class ToUnion(Converter[TO, FROM], register=(tx.Union, UnionType)):
-    """Converter for [`Union`][typing.Union]."""
+    """
+    Converter for [`Union`][typing.Union].
+
+    !!! example
+        Branches are tried in order; the first that converts wins:
+
+        ```pycon
+        >>> from bagof.converters import get_converter
+        >>> convert = get_converter(int | str)
+        >>> convert("5")
+        5
+        >>> convert("x")
+        'x'
+        ```
+    """
 
     BOUND = DEFAULT = tx.Union
 
