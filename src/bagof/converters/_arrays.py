@@ -65,6 +65,11 @@ class ArrayConverter(Converter[tx.Any, tx.Any]):
     A subclass sets the class attributes below; it does not override
     ``__call__``. The array/scalar namespaces are held as callables so the
     class body never touches an optional library at import time.
+
+    !!! note
+        The concrete converters (``ToNDArray``, ``ToDaskArray``,
+        ``ToCupyArray``) are only defined and registered when their
+        backing library (numpy, dask or cupy) can be imported.
     """
 
     #: The array namespace (numpy / cupy / dask.array) -- provides

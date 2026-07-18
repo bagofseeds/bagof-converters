@@ -76,6 +76,13 @@ class Converter(
 
     Converters take a value and return a converted version of it.
     They are registered in a global registry and looked up by type hint.
+
+    !!! note
+        Failed conversions raise a [`ConversionError`][]. Its concrete
+        subclasses -- [`ValueConversionError`][] (also a [`ValueError`][])
+        and [`TypeConversionError`][] (also a [`TypeError`][]) -- inherit
+        the matching builtin, so callers that already catch `ValueError`
+        or `TypeError` still catch conversion failures.
     """
 
     DEFAULT = tx.Any
