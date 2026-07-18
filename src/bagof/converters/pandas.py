@@ -9,6 +9,9 @@ import typing_extensions as tx
 from .base import Converter
 
 if tx.TYPE_CHECKING:
+    # Import the bare module so mkdocstrings resolves the `pandas.*`
+    # cross-references in the docstrings below. Type-checking only.
+    import pandas  # noqa: F401
     import pandas as pd
 else:
     try:

@@ -8,6 +8,9 @@ from ._arrays import ArrayConverter
 from .base import Converter
 
 if tx.TYPE_CHECKING:
+    # Import the bare module so mkdocstrings resolves the `numpy.*`
+    # cross-references in the docstrings below. Type-checking only.
+    import numpy  # noqa: F401
     import numpy as np
     from bagof.hints.numpy import ndarray as _hint_ndarray
     from bagof.hints.numpy.typevars.co import DTYPE
