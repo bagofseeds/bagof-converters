@@ -23,11 +23,13 @@ if tx.TYPE_CHECKING or pd is not None:
         """
         Converter for [`pandas.DataFrame`][].
 
-        An existing frame is returned unchanged (the inherited
-        [`__call__`][bagof.converters.base.Converter.__call__] passes
-        instances of the target type through rather than rebuilding them, so
-        a real frame is never needlessly copied); anything else is passed to
-        the [`pandas.DataFrame`][] constructor.
+        !!! note
+            An existing frame is returned unchanged (the inherited
+            [`__call__`][bagof.converters.base.Converter.__call__]
+            passes instances of the target type through rather than
+            rebuilding them, so a real frame is never needlessly
+            copied); anything else is passed to the
+            [`pandas.DataFrame`][] constructor.
         """
 
         DEFAULT = pd.DataFrame

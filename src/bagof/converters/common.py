@@ -73,8 +73,10 @@ class ToType(Converter[TO, FROM], register=type):
     """
     Converter for [`type`][] and [`Type[T]`][typing.Type].
 
-    This is a *validating* converter: it does not coerce, it checks that the
-    value is a class (and, for `Type[T]`, a subclass of `T`).
+    !!! note
+        This is a *validating* converter: it does not coerce, it checks
+        that the value is a class (and, for `Type[T]`, a subclass
+        of `T`).
     """
 
     DEFAULT = type

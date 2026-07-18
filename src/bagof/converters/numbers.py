@@ -104,10 +104,12 @@ class ToBool(ToNumber[bool], register=bool):
     """
     Converter for [`bool`][].
 
-    Strings are parsed by spelling rather than by truthiness -- ``"false"``,
-    ``"0"``, ``"no"`` and the like become `False`, not `True` (which is what
-    plain [`bool`][] does with any non-empty string). Unrecognised strings
-    raise, rather than defaulting to `True`.
+    !!! warning
+        Strings are parsed by spelling rather than by truthiness --
+        ``"false"``, ``"0"``, ``"no"`` and the like become `False`, not
+        `True` (which is what plain [`bool`][] does with any non-empty
+        string). Unrecognised strings raise, rather than defaulting to
+        `True`.
     """
 
     DEFAULT = bool

@@ -202,11 +202,14 @@ class ToSet(ToIterable, register=abc.Set):
     """
     Converter for [`abc.Set`][collections.abc.Set].
 
-    Sets convert element-wise like any other iterable; the only difference
-    from [`ToIterable`][bagof.converters.collections.ToIterable] is the
-    concrete fallback, so that an abstract ``Set[int]`` hint still produces
-    a real container ([`frozenset`][], since ``abc.Set`` is immutable)
-    rather than a bare iterator.
+    Sets convert element-wise like any other iterable.
+
+    !!! note
+        The only difference from
+        [`ToIterable`][bagof.converters.collections.ToIterable] is the
+        concrete fallback, so that an abstract ``Set[int]`` hint still
+        produces a real container ([`frozenset`][], since ``abc.Set`` is
+        immutable) rather than a bare iterator.
     """
 
     DEFAULT = abc.Set

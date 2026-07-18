@@ -22,9 +22,11 @@ class ToEnum(Converter[T, tx.Any], register=enum.Enum):
     A value is resolved first by *value* (``Colour(1)``) and then, failing
     that, by *name* (``Colour["RED"]``). Members are returned unchanged.
 
-    Only [`enum.Enum`][] is registered; [`IntEnum`][enum.IntEnum],
-    [`StrEnum`][enum.StrEnum], [`Flag`][enum.Flag] and the rest dispatch to
-    it as subclasses (and ``StrEnum`` does not exist before Python 3.11).
+    !!! note
+        Only [`enum.Enum`][] is registered; [`IntEnum`][enum.IntEnum],
+        [`StrEnum`][enum.StrEnum], [`Flag`][enum.Flag] and the rest
+        dispatch to it as subclasses (and ``StrEnum`` does not exist
+        before Python 3.11).
     """
 
     DEFAULT = enum.Enum
