@@ -1,4 +1,4 @@
-"""Converters for collection types (list, tuple, dict, etc.)"""
+"""Converters for collection types (list, tuple, dict, etc.)."""
 
 __all__ = [
     "ToIterable",
