@@ -62,7 +62,7 @@ toggle.icon = "lucide/moon"
 toggle.name = "Switch to light mode"
 
 [project.theme.icon]
-logo =  "fontawesome/solid/circle-right"
+logo =  "material/sprout"
 repo = "fontawesome/brands/github"
 
 # ----------------------------------------------------------------------------
