@@ -1,4 +1,4 @@
-"""Common converters (any, union, etc.)"""
+"""Common converters (any, union, etc.)."""
 
 __all__ = [
     "ToAny",

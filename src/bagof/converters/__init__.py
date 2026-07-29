@@ -1,5 +1,5 @@
 """
-Automatic type-based converters.
+Hint-based converters that operate at runtime.
 
 Modules
 -------

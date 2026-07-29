@@ -91,7 +91,7 @@ class Converter(
         """
         Parameters
         ----------
-        hint
+        hint : Any, optional
             The type hint to use for this magic object.
             If not provided, the default hint for the class is used.
         compose : bool
@@ -254,7 +254,7 @@ class Converter(
 
         Parameters
         ----------
-        hint
+        hint : Any
             The type hint for which to get a converter.
         registry : ConverterRegistry
             The registry to look up the converter in.
@@ -285,7 +285,7 @@ class Converter(
 
         Parameters
         ----------
-        hint
+        hint : Any
             The type hint for which to get a converter.
         registry : ConverterRegistry
             The registry to look up the converter in.
@@ -305,13 +305,13 @@ class Converter(
 
 
 register_converter = Converter.register
-"""Backward-compatible alias for [`Converter.register`][]"""
+"""Backward-compatible alias for [`Converter.register`][]."""
 
 get_converter = Converter.get
-"""Backward-compatible alias for [`Converter.get`][]"""
+"""Backward-compatible alias for [`Converter.get`][]."""
 
 get_converter_class = Converter.get_class
-"""Backward-compatible alias for [`Converter.get_class`][]"""
+"""Backward-compatible alias for [`Converter.get_class`][]."""
 
 
 def wrap_converter(
@@ -326,10 +326,16 @@ def wrap_converter(
     ----------
     converter : Converter
         The converter to wrap.
-    TO : Any
+    TO : Any, optional
         The output type hint. Defaults to `converter.hint`.
-    FROM : Any
+    FROM : Any, optional
         The input type hint. Defaults to `converter.like()`.
+
+    Returns
+    -------
+    Callable
+        A callable that wraps `converter`, annotated with `FROM` as its
+        parameter type and `TO` as its return type.
     """
     if TO is UNSET:
         TO = converter.hint
