@@ -144,3 +144,45 @@ def test_type_is_registered() -> None:
     from bagof.converters.base import Converter
 
     assert Converter.get_class(type) is common.ToType
+
+
+# --- ToUnion.like() -----------------------------------------------------
+#
+# `.like()` returns the hint describing valid inputs for a union, with
+# redundant (already-covered) branches filtered out. These classes give a
+# real, reliable `issubhint` relationship to exercise that filtering,
+# without depending on any generic-parametrised-hint behaviour.
+
+
+class _Narrow(int):
+    """A strict subclass of `int` -- redundant once `int` is also present."""
+
+
+class _SiblingA(int):
+    """A strict subclass of `int`, unrelated to `_SiblingB`."""
+
+
+class _SiblingB(int):
+    """A strict subclass of `int`, unrelated to `_SiblingA`."""
+
+
+def test_union_like_drops_redundant_subhint() -> None:
+    # `_Narrow` is a subclass of `int`, so once `int` is also a branch,
+    # listing `_Narrow` separately is redundant and must be dropped.
+    assert common.ToUnion(tx.Union[int, _Narrow]).like() is int
+
+
+def test_union_like_is_order_independent() -> None:
+    # The same redundant branch must be dropped regardless of the order
+    # the union members appear in.
+    forward = common.ToUnion(tx.Union[int, _Narrow]).like()
+    backward = common.ToUnion(tx.Union[_Narrow, int]).like()
+    assert forward is int
+    assert backward is int
+
+
+def test_union_like_drops_multiple_superseded_subhints() -> None:
+    # `_SiblingA` and `_SiblingB` are unrelated to each other, so both
+    # survive on their own -- but `int` supersedes both at once and must
+    # remove them both, not just the first match.
+    assert common.ToUnion(tx.Union[_SiblingA, _SiblingB, int]).like() is int

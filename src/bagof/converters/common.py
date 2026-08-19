@@ -159,12 +159,12 @@ def _like_union(hint: tx.Any, __reentrant: tuple = ()) -> tx.Any:
     # Only keep the more specific hints (remove super hints)
     filtered_args: list = []
     for arg in args:
-        for filtered_arg in filtered_args:
-            if issubhint(arg, filtered_arg):
-                continue
-            if issubhint(filtered_arg, arg):
-                filtered_args.remove(filtered_arg)
-                break
+        if any(issubhint(arg, kept) for kept in filtered_args):
+            # `arg` is redundant: an existing entry already covers it
+            continue
+        filtered_args = [
+            kept for kept in filtered_args if not issubhint(kept, arg)
+        ]
         filtered_args.append(arg)
 
     return tx.Union[tuple(filtered_args)] if filtered_args else tx.Never
