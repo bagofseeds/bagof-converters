@@ -4,6 +4,7 @@ import typing_extensions as tx
 
 # locals
 from bagof.converters import common
+from bagof.converters.base import Converter
 from bagof.converters.exceptions import ConversionError
 
 # --- ToAny ------------------------------------------------------------
@@ -144,3 +145,56 @@ def test_type_is_registered() -> None:
     from bagof.converters.base import Converter
 
     assert Converter.get_class(type) is common.ToType
+
+
+# --- ToUnion.like() -----------------------------------------------------
+#
+# `.like()` returns the hint describing valid inputs for a union, with
+# redundant (already-covered) branches filtered out. These classes give a
+# real, reliable `issubhint` relationship to exercise that filtering,
+# without depending on any generic-parametrised-hint behaviour.
+
+
+class _Narrow(int):
+    """A strict subclass of `int` -- redundant once `int` is also present."""
+
+
+class _SiblingA(int):
+    """A strict subclass of `int`, unrelated to `_SiblingB`."""
+
+
+class _SiblingB(int):
+    """A strict subclass of `int`, unrelated to `_SiblingA`."""
+
+
+def _like_int() -> tx.Any:
+    """What `int` alone accepts as input.
+
+    Not simply `int`: the numpy converter widens it when numpy is
+    installed, so comparing against a literal type would pass or fail
+    depending on which optional libraries are present.
+    """
+    return Converter.get(int).like()
+
+
+def test_union_like_drops_redundant_subhint() -> None:
+    # `_Narrow` is a subclass of `int`, so once `int` is also a branch,
+    # listing `_Narrow` separately is redundant: the union must accept
+    # exactly what `int` alone accepts.
+    assert common.ToUnion(tx.Union[int, _Narrow]).like() == _like_int()
+
+
+def test_union_like_is_order_independent() -> None:
+    # The same redundant branch must be dropped regardless of the order
+    # the union members appear in.
+    forward = common.ToUnion(tx.Union[int, _Narrow]).like()
+    backward = common.ToUnion(tx.Union[_Narrow, int]).like()
+    assert forward == backward == _like_int()
+
+
+def test_union_like_drops_multiple_superseded_subhints() -> None:
+    # `_SiblingA` and `_SiblingB` are unrelated to each other, so both
+    # survive on their own -- but `int` supersedes both at once and must
+    # remove them both, not just the first match.
+    union = tx.Union[_SiblingA, _SiblingB, int]
+    assert common.ToUnion(union).like() == _like_int()
