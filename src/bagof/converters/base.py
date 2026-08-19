@@ -140,7 +140,7 @@ class Converter(
             value = self._wrap_converter(self.origin)(value)
         return tx.cast(TO, value)
 
-    def error(
+    def make_error(
         self, value: tx.Any, message: tx.Optional[str] = None, **kwargs: tx.Any
     ) -> ConversionError:
         """Return a [`ConversionError`][] with the given value and message."""
@@ -161,7 +161,7 @@ class Converter(
         """Return a [`TypeConversionError`][] with the given value."""
         if message is None:
             message = f"Invalid value type: {type(value)}"
-        return self.error(value, message, type=TypeConversionError)
+        return self.make_error(value, message, type=TypeConversionError)
 
     def value_error(
         self, value: tx.Any, message: tx.Optional[str] = None
@@ -169,7 +169,7 @@ class Converter(
         """Return a [`ValueConversionError`][] with the given value."""
         if message is None:
             message = "Invalid value."
-        return self.error(value, message, type=ValueConversionError)
+        return self.make_error(value, message, type=ValueConversionError)
 
     def _wrap_converter(self, converter: tx.Callable) -> tx.Callable:
         """
