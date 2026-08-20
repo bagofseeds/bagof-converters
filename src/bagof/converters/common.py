@@ -18,6 +18,7 @@ from bagof.core.magic import (
     UNSET,
     MultipleCauses,
     get_args_uw,
+    ishintstance,
     issubhint,
     safe_get_args,
     safe_isinstance,
@@ -221,12 +222,18 @@ class ToLiteral(Converter[TO, FROM], register=tx.Literal):
         return self.hint
 
     def __call__(self, value: FROM) -> TO:
-        """Return the value if it is one of the literals; raise otherwise."""
-        if value not in self.args:
-            raise self.value_error(
-                value, "Value is not compatible with any of the literals."
-            )
-        return value  # type: ignore[return-value]
+        """Return the matching literal; raise if the value is not one."""
+        for arg in self.args:
+            # Match by type as well as value, as PEP 586 specifies: `True`
+            # is not a valid `Literal[1]` even though `True == 1`. And
+            # return the literal itself rather than the input, so the
+            # result really is of the hinted type -- returning `1.0` for
+            # `Literal[1]` would be a conversion that converts nothing.
+            if ishintstance(value, tx.Literal[arg]):
+                return arg  # type: ignore[return-value]
+        raise self.value_error(
+            value, "Value is not compatible with any of the literals."
+        )
 
 
 # --- TypeVar ----------------------------------------------------------

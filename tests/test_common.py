@@ -294,3 +294,43 @@ def test_all_any_union_still_reports_any() -> None:
     # If every branch genuinely accepts anything, `Any` is the honest
     # answer -- the filter must not turn that into `Never`.
     assert Converter.get(tx.Union[tx.Any, tx.Any]).like() is tx.Any
+
+
+# ----------------------------------------------------------------------
+# Literal matching
+# ----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "hint,value",
+    [
+        # PEP 586: a literal matches by type as well as by value.
+        (tx.Literal[1], True),
+        (tx.Literal[1], 1.0),
+        (tx.Literal[True], 1),
+        (tx.Literal[0], False),
+        (tx.Literal["a"], b"a"),
+    ],
+)
+def test_literal_matches_by_type_as_well_as_value(
+    hint: tx.Any, value: tx.Any
+) -> None:
+    with pytest.raises(ConversionError):
+        Converter.get(hint)(value)
+
+
+@pytest.mark.parametrize(
+    "hint,value,expected",
+    [
+        (tx.Literal[1], 1, 1),
+        (tx.Literal[True], True, True),
+        (tx.Literal[1, "a"], "a", "a"),
+        (tx.Literal[None], None, None),
+    ],
+)
+def test_literal_returns_the_matching_literal(
+    hint: tx.Any, value: tx.Any, expected: tx.Any
+) -> None:
+    result = Converter.get(hint)(value)
+    assert result == expected
+    assert type(result) is type(expected)
