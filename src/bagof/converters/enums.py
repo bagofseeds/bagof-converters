@@ -31,6 +31,17 @@ class ToEnum(Converter[T, tx.Any], register=enum.Enum):
 
     DEFAULT = enum.Enum
 
+    def like(self, __reentrant: tuple = ()) -> tx.Any:
+        """Accept a member, one of the member values, or a member name."""
+        origin = self.origin
+        members = list(origin) if isinstance(origin, type) else []
+        if not members:
+            return tx.Union[origin, str]
+        # The names are strings; the values can be anything the enum was
+        # declared with, so report the types actually present.
+        value_types = tuple({type(member.value) for member in members})
+        return tx.Union[(origin, str) + value_types]
+
     def __call__(self, value: tx.Any) -> T:
         """Convert the value to a member of the enum."""
         origin = self.origin
