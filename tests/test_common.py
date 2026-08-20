@@ -387,3 +387,38 @@ def test_length_converter_can_compose() -> None:
     from bagof.converters.collections import ToLength
 
     assert ToLength(2, compose=True).compose is True
+
+
+# ----------------------------------------------------------------------
+# Union branch failures
+# ----------------------------------------------------------------------
+
+
+def test_union_surfaces_a_broken_branch() -> None:
+    # locals
+    from bagof.converters.base import CONVERTERS
+
+    class Broken(Converter[complex, tx.Any]):
+        DEFAULT = complex
+
+        def __call__(self, value: tx.Any) -> tx.Any:
+            raise TypeError("this branch is broken")
+
+    Converter.register(Broken, complex)
+    try:
+        # Catching the builtins swallowed genuine bugs in a converter's
+        # own code and reported them as "no branch matched".
+        with pytest.raises(TypeError, match="this branch is broken"):
+            Converter.get(tx.Union[complex, str])(object())
+    finally:
+        CONVERTERS.pop(complex, None)
+
+
+def test_union_branch_that_does_not_match_still_falls_through() -> None:
+    assert Converter.get(tx.Union[int, str])("abc") == "abc"
+
+
+def test_union_reports_every_branch_failure_as_a_cause() -> None:
+    with pytest.raises(ConversionError) as info:
+        Converter.get(tx.Union[int, complex])(object())
+    assert len(info.value.causes) == 2

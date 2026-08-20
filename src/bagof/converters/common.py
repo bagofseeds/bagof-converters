@@ -37,7 +37,7 @@ from .base import (
     ConverterRegistry,
     _process_reentrant,
 )
-from .exceptions import TypeConversionError
+from .exceptions import ConversionError, TypeConversionError
 
 # --- Any --------------------------------------------------------------
 
@@ -199,10 +199,15 @@ def _to_union(
 
     errors = []
     for arg in args:
+        converter = Converter.get(arg)
         try:
-            converter = Converter.get(arg)
             return converter(value)
-        except (TypeError, ValueError) as e:
+        except ConversionError as e:
+            # Only a conversion failure means "this branch did not match".
+            # Catching the builtins here as well swallowed genuine bugs in
+            # a converter's own code and reported them as "no branch
+            # matched"; a branch that raises a plain `TypeError` is a
+            # branch that is broken, and that should surface.
             errors.append(e)
             continue
 
