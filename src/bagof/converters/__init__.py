@@ -40,6 +40,7 @@ __all__ = [
     "numpy",
     "pandas",
     "strings",
+    "typeddicts",
 ]
 
 try:
@@ -59,6 +60,7 @@ from . import (
     numpy,
     pandas,
     strings,
+    typeddicts,
 )
 from .base import *  # noqa: F401, F403
 from .base import __all__ as __all_base
@@ -82,6 +84,8 @@ from .pandas import *  # noqa: F401, F403
 from .pandas import __all__ as __all_pandas
 from .strings import *  # noqa: F401, F403
 from .strings import __all__ as __all_strings
+from .typeddicts import *  # noqa: F401, F403
+from .typeddicts import __all__ as __all_typeddicts
 
 __all__ += __all_base
 __all__ += __all_collections
@@ -94,3 +98,4 @@ __all__ += __all_numbers
 __all__ += __all_numpy
 __all__ += __all_pandas
 __all__ += __all_strings
+__all__ += __all_typeddicts
