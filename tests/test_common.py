@@ -1,5 +1,4 @@
 # stdlib
-import datetime
 import enum
 
 # dependencies
@@ -10,6 +9,11 @@ import typing_extensions as tx
 from bagof.converters import common
 from bagof.converters.base import Converter, wrap_converter
 from bagof.converters.exceptions import ConversionError
+
+
+class _Unregistered:
+    """A type no converter is registered for."""
+
 
 # --- ToAny ------------------------------------------------------------
 
@@ -213,30 +217,30 @@ def test_get_falls_back_to_the_base_converter() -> None:
     # `Validator.get` and `Factory.get` both default to their base class;
     # this one returned `None`, so an unregistered hint failed later and
     # elsewhere with "'NoneType' object is not callable".
-    converter = Converter.get(datetime.datetime)
+    converter = Converter.get(_Unregistered)
     assert isinstance(converter, Converter)
 
 
 def test_unregistered_hint_raises_a_conversion_error_naming_it() -> None:
     with pytest.raises(ConversionError) as info:
-        Converter.get(datetime.datetime)("2020-01-01")
-    assert "datetime" in str(info.value)
+        Converter.get(_Unregistered)("nope")
+    assert "_Unregistered" in str(info.value)
 
 
 def test_base_converter_passes_an_already_valid_value_through() -> None:
-    now = datetime.datetime(2020, 1, 1)
-    assert Converter.get(datetime.datetime)(now) is now
+    value = _Unregistered()
+    assert Converter.get(_Unregistered)(value) is value
 
 
 def test_get_still_returns_none_when_asked() -> None:
-    assert Converter.get(datetime.datetime, fallback=None) is None
-    assert Converter.get_class(datetime.datetime, fallback=None) is None
+    assert Converter.get(_Unregistered, fallback=None) is None
+    assert Converter.get_class(_Unregistered, fallback=None) is None
 
 
 def test_wrap_converter_with_an_unregistered_target() -> None:
     # `Converter.get(TO)` returned `None` here, and `wrap_converter`
     # dereferenced it: "'NoneType' object has no attribute 'like'".
-    wrapped = wrap_converter(Converter.get(int), datetime.datetime)
+    wrapped = wrap_converter(Converter.get(int), _Unregistered)
     assert callable(wrapped)
 
 
