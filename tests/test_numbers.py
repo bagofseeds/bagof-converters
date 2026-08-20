@@ -7,6 +7,7 @@ import typing_extensions as tx
 
 # locals
 from bagof.converters import numbers as conv_numbers
+from bagof.converters.base import Converter
 from bagof.converters.exceptions import ConversionError
 
 # --- ToNumber ---------------------------------------------------------
@@ -269,3 +270,88 @@ def test_bool_is_registered() -> None:
 
 def test_bool_like() -> None:
     assert conv_numbers.ToBool().like() == tx.Union[bool, int, str]
+
+
+# ----------------------------------------------------------------------
+# Abstract numeric hints: the fallback ladder
+# ----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "hint,value,expected,expected_type",
+    [
+        # Nothing converts while preserving equality, so the widest type
+        # the hint allows is used. `fallbacks[0]` is `bool` -- the
+        # *narrowest* -- and turned each of these into `True`.
+        (numbers.Integral, "5", 5, int),
+        (numbers.Real, "1.5", 1.5, float),
+        (numbers.Complex, "1", 1 + 0j, complex),
+    ],
+)
+def test_abstract_hint_falls_back_to_the_widest_type(
+    hint: tx.Any, value: tx.Any, expected: tx.Any, expected_type: type
+) -> None:
+    result = Converter.get(hint)(value)
+    assert result == expected
+    assert type(result) is expected_type
+
+
+@pytest.mark.parametrize(
+    "hint,value,expected_type",
+    [
+        # These *do* convert while preserving equality, so the narrowest
+        # equality-preserving type wins.
+        (numbers.Integral, 5.0, int),
+        (numbers.Real, 2, int),
+    ],
+)
+def test_abstract_hint_prefers_an_equality_preserving_type(
+    hint: tx.Any, value: tx.Any, expected_type: type
+) -> None:
+    result = Converter.get(hint)(value)
+    assert result == value
+    assert type(result) is expected_type
+
+
+def test_abstract_hint_with_an_unconvertible_value_raises() -> None:
+    with pytest.raises(ConversionError):
+        Converter.get(numbers.Integral)("not a number")
+
+
+def test_fallback_ladders_are_ordered_narrowest_first() -> None:
+    # The final fallback takes the last entry, so the ordering is
+    # load-bearing rather than cosmetic.
+    ladders = conv_numbers.ToNumber.FALLBACKS
+    assert ladders[numbers.Integral][-1] is int
+    assert ladders[numbers.Real][-1] is float
+    assert ladders[numbers.Number][-1] is complex
+
+
+@pytest.mark.parametrize(
+    "hint,expected_member",
+    [
+        (int, numbers.Integral),
+        (float, numbers.Real),
+        (numbers.Number, numbers.Number),
+    ],
+)
+def test_like_widens_to_the_numeric_tower(
+    hint: tx.Any, expected_member: tx.Any
+) -> None:
+    like = Converter.get(hint).like()
+    assert expected_member in tx.get_args(like)
+
+
+def test_like_is_reentrant_safe() -> None:
+    # The re-entrancy guard returns the hint itself on the second visit.
+    converter = Converter.get(int)
+    assert converter.like((converter.hint,)) is converter.hint
+
+
+def test_like_without_numpy_returns_the_bare_hint(
+    monkeypatch: tx.Any,
+) -> None:
+    """With no array library installed, `like` is just the numeric hint."""
+    monkeypatch.setattr(conv_numbers, "np", None)
+    assert Converter.get(numbers.Integral).like() is numbers.Integral
+    assert Converter.get(int).like() is int

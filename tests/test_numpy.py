@@ -144,3 +144,19 @@ def test_ndarray_like() -> None:
 
 def test_ndarray_is_registered() -> None:
     assert Converter.get_class(np.ndarray) is converters_numpy.ToNDArray
+
+
+def test_ndarray_dtype_coerced_from_another_array() -> None:
+    # Already an ndarray, but of the wrong dtype: it is cast, not rebuilt.
+    arr = np.array([1.5, 2.5], dtype=np.float64)
+    result = Converter.get(NDArray[np.int32])(arr)
+    assert result.dtype == np.dtype("int32")
+    assert result.tolist() == [1, 2]
+
+
+def test_ndarray_unparametrised_dtype_leaves_the_dtype_alone() -> None:
+    # ``ndarray[Any, dtype]`` names no scalar type, so nothing is coerced.
+    hint = pytest.importorskip("bagof.hints.numpy").ndarray[tx.Any, np.dtype]
+    result = Converter.get(hint)([1, 2, 3])
+    assert isinstance(result, np.ndarray)
+    assert np.issubdtype(result.dtype, np.integer)

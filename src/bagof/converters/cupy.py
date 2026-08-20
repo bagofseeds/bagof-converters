@@ -15,7 +15,9 @@ if tx.TYPE_CHECKING:
     import cupy as cp
     from bagof.hints.cupy import ndarray as _hint_ndarray
 else:
-    try:
+    # cupy needs a CUDA toolchain and cannot be installed on a CPU runner,
+    # so no single environment ever exercises both halves of this block.
+    try:  # pragma: no cover
         import cupy as cp
         from bagof.hints.cupy import ndarray as _hint_ndarray
     except ImportError:  # pragma: no cover

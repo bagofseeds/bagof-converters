@@ -331,9 +331,25 @@ class ToAnnotated(Converter[TO, FROM], register=tx.Annotated):
         cls, hint: tx.Any
     ) -> tx.Optional["Converter"]:
         # First try a direct registry lookup (works for types/hints).
-        converter = Converter.get(hint, registry=cls._REGISTRY, fallback=None)
-        if converter is not None:
-            return converter
+        converter_cls = Converter.get_class(
+            hint, registry=cls._REGISTRY, fallback=None
+        )
+        if converter_cls is not None:
+            # A registered key is handed to its converter as the hint, the
+            # same way `Converter.get` builds any converter. A converter
+            # that takes its own configuration first (a pattern, a length)
+            # cannot be built from the bare key -- `Annotated[str,
+            # re.Pattern]` used to fail inside `re.compile` with an
+            # unrelated message. Say what is actually wrong instead.
+            try:
+                return converter_cls(hint)
+            except TypeError as error:
+                raise TypeError(
+                    f"Cannot build {converter_cls.__name__} from the bare "
+                    f"metadata {hint!r}: it takes its own configuration as "
+                    f"its first argument. Annotate with a configured "
+                    f"instance instead."
+                ) from error
         # If hint is an instance (e.g. re.compile(r"\d+")), look up its type
         # (e.g. re.Pattern) and instantiate the converter with the instance as
         # the first positional argument (e.g. ToRegexMatch(pattern)).

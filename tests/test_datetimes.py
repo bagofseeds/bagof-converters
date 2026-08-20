@@ -95,3 +95,11 @@ def test_timedelta_invalid(value: tx.Any) -> None:
 )
 def test_like_is_informative(hint: tx.Any) -> None:
     assert Converter.get(hint).like() is not tx.Any
+
+
+@pytest.mark.parametrize(
+    "hint", [datetime.date, datetime.time]
+)
+def test_date_and_time_reject_an_unrelated_type(hint: tx.Any) -> None:
+    with pytest.raises(ConversionError, match="Cannot convert"):
+        Converter.get(hint)(object())
