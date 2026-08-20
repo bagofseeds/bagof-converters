@@ -1,5 +1,6 @@
 # stdlib
 import datetime
+import enum
 
 # dependencies
 import pytest
@@ -237,3 +238,59 @@ def test_wrap_converter_with_an_unregistered_target() -> None:
     # dereferenced it: "'NoneType' object has no attribute 'like'".
     wrapped = wrap_converter(Converter.get(int), datetime.datetime)
     assert callable(wrapped)
+
+
+# ----------------------------------------------------------------------
+# like()
+# ----------------------------------------------------------------------
+
+
+def test_optional_like_does_not_collapse_to_any() -> None:
+    # `ToNone` inherited the base's `Any`, and `Any` is a super hint of
+    # every other branch -- so the redundancy filter erased them all and
+    # the most common hint shape in Python reported no information.
+    like = Converter.get(tx.Optional[int]).like()
+    assert like is not tx.Any
+    assert type(None) in tx.get_args(like)
+
+
+@pytest.mark.parametrize(
+    "hint",
+    [
+        tx.Optional[int],
+        tx.Union[int, None],
+        tx.Union[str, type],
+        tx.Union[int, str],
+    ],
+)
+def test_union_like_is_never_bare_any(hint: tx.Any) -> None:
+    assert Converter.get(hint).like() is not tx.Any
+
+
+def test_none_like() -> None:
+    assert Converter.get(type(None)).like() is type(None)  # noqa: E721
+
+
+def test_type_like() -> None:
+    assert Converter.get(type).like() is type
+
+
+def test_enum_like_reports_what_it_accepts() -> None:
+    # locals
+    from bagof.converters.enums import ToEnum
+
+    class Colour(enum.Enum):
+        RED = 1
+        GREEN = 2
+
+    args = tx.get_args(ToEnum(Colour).like())
+    # a member, a name, or a value
+    assert Colour in args
+    assert str in args
+    assert int in args
+
+
+def test_all_any_union_still_reports_any() -> None:
+    # If every branch genuinely accepts anything, `Any` is the honest
+    # answer -- the filter must not turn that into `Never`.
+    assert Converter.get(tx.Union[tx.Any, tx.Any]).like() is tx.Any

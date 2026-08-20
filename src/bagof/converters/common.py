@@ -59,6 +59,10 @@ class ToNone(Converter[NONE, tx.Any], register=NoneType):
 
     BOUND = DEFAULT = NoneType
 
+    def like(self, __reentrant: tuple = ()) -> tx.Any:
+        """Accept only `None`."""
+        return NoneType
+
     def __call__(self, value: tx.Any) -> NONE:
         """Return the value if it is None, otherwise raise a TypeError."""
         if value is not None:
@@ -80,6 +84,10 @@ class ToType(Converter[TO, FROM], register=type):
     """
 
     DEFAULT = type
+
+    def like(self, __reentrant: tuple = ()) -> tx.Any:
+        """Accept a class."""
+        return type
 
     def __call__(self, value: FROM) -> TO:
         """Return the value if it is a (sufficiently specific) type."""
@@ -155,6 +163,15 @@ def _like_union(hint: tx.Any, __reentrant: tuple = ()) -> tx.Any:
         for arg in args
     )
     args = tuple(arg for arg in args if arg is not UNSET)
+
+    # A branch that accepts anything must not swallow the others. It is a
+    # super hint of every one of them, so the redundancy filter below
+    # would collapse the whole union to `Any` -- which is true but
+    # useless, and is what `wrap_converter` would then annotate with.
+    specific = tuple(arg for arg in args if arg is not tx.Any)
+    if not specific:
+        return tx.Any if args else tx.Never
+    args = specific
 
     # Only keep the more specific hints (remove super hints)
     filtered_args: list = []
