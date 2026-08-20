@@ -107,9 +107,19 @@ def test_unparametrised_tuple_like() -> None:
 # ----------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("value", [list, dict, int])
-def test_type_to_hint_keeps_a_subscriptable_type(value: tx.Any) -> None:
+@pytest.mark.parametrize("value", [tx.List, tx.Dict, tx.List[int]])
+def test_type_to_hint_keeps_a_subscriptable_hint(value: tx.Any) -> None:
     assert _type_to_hint(value) is value
+
+
+@pytest.mark.parametrize("value,alias", [(list, tx.List), (dict, tx.Dict)])
+def test_type_to_hint_maps_a_bare_builtin_to_its_typing_alias(
+    value: tx.Any, alias: tx.Any
+) -> None:
+    # `list[int]` only became legal in 3.9; below that the builtin is
+    # swapped for the `typing` alias, which is subscriptable everywhere.
+    expected = value if issubscriptable(value) else alias
+    assert _type_to_hint(value) is expected
 
 
 def test_type_to_hint_leaves_an_unknown_type_alone() -> None:
