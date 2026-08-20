@@ -57,6 +57,9 @@ where = ["src"]
 include = ["bagof*"]
 namespaces = true
 
+[tool.setuptools.package-data]
+"bagof.converters" = ["py.typed"]
+
 [tool.versioningit]
 default-version = "0+unknown"
 
