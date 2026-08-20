@@ -373,10 +373,25 @@ def _process_reentrant(inp: tx.Any, reentrant: tuple = ()) -> tuple:
 def _trywrap_converter(
     converter: tx.Callable, error: tx.Any
 ) -> tx.Callable:
-    """Wrap a converter to catch errors and raise a ConversionError instead."""
+    """
+    Wrap a converter so that a plain [`TypeError`][] or [`ValueError`][]
+    raised inside it surfaces as a [`ConversionError`][], with the
+    original attached as its cause.
+
+    A [`ConversionError`][] raised by the wrapped converter passes
+    through unchanged.
+    """
     def wrapped(value: tx.Any) -> tx.Any:
         try:
             return converter(value)
+        except ConversionError:
+            # Already the right kind of error: re-raise it untouched, so
+            # its specific type, message and `causes` survive. `TypeError`
+            # and `ValueError` are the base classes of
+            # `TypeConversionError` and `ValueConversionError`, so without
+            # this the `except` below downgrades every real failure to a
+            # generic "Invalid value."
+            raise
         except (TypeError, ValueError) as e:
             _error = error
             if callable(_error):
