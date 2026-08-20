@@ -294,16 +294,20 @@ class ToAnnotated(Converter[TO, FROM], register=tx.Annotated):
     _REGISTRY: ConverterRegistry = {}
 
     @classmethod
-    def register(  # type: ignore[override]
-        cls, *hints: tx.Unpack[tx.Tuple[tx.Any]]
+    def register_metadata(
+        cls, *hints: tx.Unpack[tx.Tuple[tx.Any, ...]]
     ) -> ClassDecorator:
         """
         Register a converter class for use as [`Annotated`][typing.Annotated]
         metadata.
 
+        Distinct from [`Converter.register`][], which registers a
+        converter for a *type hint* in the global registry; this one
+        registers it for a piece of `Annotated` **metadata**.
+
         !!! example
             ```python
-            @ToAnnotated.register(re.Pattern)
+            @ToAnnotated.register_metadata(re.Pattern)
             class ToRegexMatch(ToString):
                 ...
             ```
@@ -316,6 +320,11 @@ class ToAnnotated(Converter[TO, FROM], register=tx.Annotated):
             return converter_cls
 
         return decorator
+
+    # Deprecated alias. `register` means "register for a type hint"
+    # everywhere else, and a bare `@ToAnnotated.register` used to
+    # silently register the decorated class as a metadata *key*.
+    register = register_metadata
 
     @classmethod
     def _get_converter(

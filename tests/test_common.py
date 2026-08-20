@@ -489,3 +489,38 @@ def test_wrapped_converter_converts_a_bare_builtin() -> None:
     with pytest.raises(ConversionError) as info:
         wrapped(1)
     assert isinstance(info.value.__cause__, ValueError)
+
+
+def test_register_metadata_is_distinct_from_register() -> None:
+    # locals
+    from bagof.converters.base import CONVERTERS
+
+    class Marker:
+        pass
+
+    @common.ToAnnotated.register_metadata(Marker)
+    class MarkedConverter(Converter[int, tx.Any]):
+        DEFAULT = int
+
+        def __init__(
+            self, marker: tx.Any = None, hint: tx.Any = None
+        ) -> None:
+            super().__init__(int)
+            self.marker = marker
+
+        def __call__(self, value: tx.Any) -> int:
+            return 42
+
+    try:
+        assert common.ToAnnotated._REGISTRY[Marker] is MarkedConverter
+        assert Marker not in CONVERTERS
+        assert common.ToAnnotated(tx.Annotated[int, Marker()])("x") == 42
+    finally:
+        common.ToAnnotated._REGISTRY.pop(Marker, None)
+
+
+def test_register_alias_still_works() -> None:
+    assert (
+        common.ToAnnotated.register.__func__
+        is common.ToAnnotated.register_metadata.__func__
+    )
