@@ -422,3 +422,38 @@ def test_union_reports_every_branch_failure_as_a_cause() -> None:
     with pytest.raises(ConversionError) as info:
         Converter.get(tx.Union[int, complex])(object())
     assert len(info.value.causes) == 2
+
+
+# ----------------------------------------------------------------------
+# Union: exact match before coercion
+# ----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("hint", [tx.Union[int, str], tx.Union[str, int]])
+@pytest.mark.parametrize("value", ["5", 5, "abc"])
+def test_union_result_does_not_depend_on_branch_order(
+    hint: tx.Any, value: tx.Any
+) -> None:
+    # `Union[int, str]` and `Union[str, int]` denote the same type, but
+    # the converter used to give different answers: `"5"` came back as
+    # `5` under one spelling and `"5"` under the other.
+    result = Converter.get(hint)(value)
+    assert result == value
+    assert type(result) is type(value)
+
+
+def test_union_still_coerces_when_nothing_matches() -> None:
+    assert Converter.get(tx.Union[int, str])(b"5") == 5
+    assert Converter.get(tx.Union[int, float])("5") == 5
+
+
+def test_optional_short_circuits_none() -> None:
+    assert Converter.get(tx.Optional[int])(None) is None
+    assert Converter.get(tx.Optional[int])("5") == 5
+
+
+def test_union_docstring_example() -> None:
+    convert = Converter.get(tx.Union[int, str])
+    assert convert("5") == "5"
+    assert convert(5) == 5
+    assert convert(b"5") == 5

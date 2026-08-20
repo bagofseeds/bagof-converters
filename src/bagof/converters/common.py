@@ -109,16 +109,20 @@ class ToUnion(Converter[TO, FROM], register=(tx.Union, UnionType)):
     """
     Converter for [`Union`][typing.Union].
 
-    !!! example
-        Branches are tried in order; the first that converts wins:
+    A value that already matches one of the branches is returned
+    unchanged. Otherwise the branches are tried in order, and the first
+    that converts wins.
 
+    !!! example
         ```pycon
         >>> from bagof.converters import get_converter
         >>> convert = get_converter(int | str)
-        >>> convert("5")
+        >>> convert("5")        # already a str
+        '5'
+        >>> convert(5)          # already an int
         5
-        >>> convert("x")
-        'x'
+        >>> convert(b"5")       # matches neither; the first that converts
+        5
         ```
     """
 
@@ -193,9 +197,18 @@ def _to_union(
 ) -> tx.Any:
     args = get_args_uw(hint)
 
-    # short-circuit for NoneType
-    if value is None and NoneType in args:
-        return None
+    # A value that already satisfies one of the branches is returned
+    # unchanged. Without this pass the result depends on how the union was
+    # spelled -- `Union[int, str]("5")` gave `5` while `Union[str, int]
+    # ("5")` gave `"5"`, even though the two hints denote the same type --
+    # and a perfectly valid `str` came back coerced to an `int`.
+    #
+    # `None` is the special case this generalises: it was already
+    # short-circuited here, because no amount of branch order should turn
+    # `None` into something else.
+    for arg in args:
+        if ishintstance(value, arg):
+            return value
 
     errors = []
     for arg in args:
