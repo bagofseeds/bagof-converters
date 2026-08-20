@@ -6,7 +6,12 @@ __all__ = ["ToTypedDict"]
 import typing_extensions as tx
 
 # bags
-from bagof.core.magic import safe_get_args, safe_get_origin, unwrap
+from bagof.core.magic import (
+    safe_get_args,
+    safe_get_origin,
+    typeddict_required_keys,
+    unwrap,
+)
 
 # locals
 from .base import Converter
@@ -74,9 +79,10 @@ class ToTypedDict(ToMapping, register=tx.TypedDict):
 
         cls = self.origin
         annotations = tx.get_type_hints(cls, include_extras=True)
-        required = getattr(cls, "__required_keys__", None)
-        if required is None:  # pragma: no cover - every TypedDict has it
-            required = frozenset(annotations)
+        # Shared with the sibling packages, so all three agree -- and it
+        # falls back to `__total__` where the class has no
+        # `__required_keys__`, which is `typing.TypedDict` before 3.9.
+        required = typeddict_required_keys(cls)
         closed = getattr(cls, "__closed__", False)
         extra_items = getattr(cls, "__extra_items__", tx.Any)
         if extra_items is getattr(tx, "NoExtraItems", tx.Any):

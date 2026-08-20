@@ -1,5 +1,8 @@
 """Tests for the TypedDict converter."""
 
+# stdlib
+import typing as std_typing
+
 # dependencies
 import pytest
 import typing_extensions as tx
@@ -117,3 +120,52 @@ def test_inherited_totality() -> None:
 )
 def test_strip_requiredness(hint: tx.Any, expected: tx.Any) -> None:
     assert _strip_requiredness(hint) == expected
+
+
+@pytest.mark.parametrize("TD", [tx.TypedDict, std_typing.TypedDict])
+def test_typeddict_works_in_either_spelling(TD: tx.Any) -> None:
+    # `typing.TypedDict` and `typing_extensions.TypedDict` are distinct
+    # objects, so the `tx.TypedDict` registry key used to miss the
+    # `typing` one, which fell through to `ToMapping` and converted
+    # nothing at all.
+    class Film(TD):
+        title: str
+        year: int
+
+    converter = Converter.get(Film)
+    assert isinstance(converter, ToTypedDict)
+    assert converter({"title": "Alien", "year": "1979"}) == {
+        "title": "Alien",
+        "year": 1979,
+    }
+
+
+@pytest.mark.parametrize("TD", [tx.TypedDict, std_typing.TypedDict])
+def test_inherited_typeddict_is_not_treated_as_a_plain_mapping(
+    TD: tx.Any,
+) -> None:
+    class Film(TD):
+        title: str
+
+    class Extended(Film):
+        rating: int
+
+    converter = Converter.get(Extended)
+    assert isinstance(converter, ToTypedDict)
+    assert converter({"title": "a", "rating": "5"}) == {
+        "title": "a",
+        "rating": 5,
+    }
+
+
+@pytest.mark.parametrize("TD", [tx.TypedDict, std_typing.TypedDict])
+def test_inherited_totality_in_either_spelling(TD: tx.Any) -> None:
+    class Base(TD, total=False):
+        optional_key: int
+
+    class Child(Base):
+        required_key: int
+
+    assert Converter.get(Child)({"required_key": "1"}) == {"required_key": 1}
+    with pytest.raises(ConversionError, match="required_key"):
+        Converter.get(Child)({"optional_key": 1})
