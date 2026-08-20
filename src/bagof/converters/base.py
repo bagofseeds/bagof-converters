@@ -182,7 +182,7 @@ class Converter(
     @staticmethod
     def register(
         converter: tx.Type["Converter"],
-        *hints: tx.Unpack[tx.Tuple[tx.Any]],
+        *hints: tx.Unpack[tx.Tuple[tx.Any, ...]],
         registry: ConverterRegistry = ...,
     ) -> tx.Type["Converter"]:
         ...
@@ -190,7 +190,7 @@ class Converter(
     @tx.overload
     @staticmethod
     def register(
-        *hints: tx.Unpack[tx.Tuple[tx.Any]],
+        *hints: tx.Unpack[tx.Tuple[tx.Any, ...]],
         registry: ConverterRegistry = ...,
     ) -> ClassDecorator:
         ...
