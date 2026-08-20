@@ -85,3 +85,64 @@ def test_bytes_invalid(value: tx.Any) -> None:
 @pytest.mark.parametrize("hint", [uuid.UUID, pathlib.Path, bytes])
 def test_like_is_informative(hint: tx.Any) -> None:
     assert Converter.get(hint).like() is not tx.Any
+
+
+# ----------------------------------------------------------------------
+# ToSlice
+# ----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        (slice(1, 5), slice(1, 5)),
+        (None, slice(None)),
+        (5, slice(None, 5, None)),           # `slice(n)` is `[:n]`
+        ([3], slice(None, 3, None)),
+        (["1", "5"], slice(1, 5)),           # components are converted
+        (("1", "5", "2"), slice(1, 5, 2)),
+        ([None, 5], slice(None, 5, None)),
+        ([None, None, -1], slice(None, None, -1)),
+    ],
+)
+def test_slice_valid(value: tx.Any, expected: slice) -> None:
+    result = Converter.get(slice)(value)
+    assert result == expected
+    assert type(result) is slice
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "x",             # any string used to become the `stop`
+        "1:5",           # the textual form is not supported
+        {"a": 1},
+        [1, 2, 3, 4],    # too many components
+        [],              # too few
+        1.5,
+        True,            # a bool is an int, but not a sensible bound
+        object(),
+    ],
+)
+def test_slice_invalid(value: tx.Any) -> None:
+    # Without a dedicated converter these all fell through to the base
+    # one, which called `slice(value)` and "succeeded" with nonsense --
+    # `(1, 2)` became `slice(None, (1, 2), None)`.
+    with pytest.raises(ConversionError):
+        Converter.get(slice)(value)
+
+
+def test_slice_component_that_is_not_an_integer_raises() -> None:
+    with pytest.raises(ConversionError):
+        Converter.get(slice)(["a", "b"])
+
+
+def test_slice_like_is_informative() -> None:
+    assert Converter.get(slice).like() is not tx.Any
+
+
+def test_slice_is_registered() -> None:
+    # locals
+    from bagof.converters.misc import ToSlice
+
+    assert isinstance(Converter.get(slice), ToSlice)
