@@ -86,7 +86,7 @@ def _to_str(
     return output_type(value)
 
 
-@ToAnnotated.register(re.Pattern)
+@ToAnnotated.register_metadata(re.Pattern)
 class ToRegexMatch(ToString[STR]):
     """Converter for strings that must match a regex pattern."""
 

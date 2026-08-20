@@ -415,3 +415,23 @@ def test_plain_tuples_are_unaffected(
     result = Converter.get(hint)(value)
     assert result == expected
     assert type(result) is tuple
+
+
+def test_tolength_truncates_a_longer_sequence() -> None:
+    # Deliberate: coercing to a fixed length is a conversion, so the
+    # extra items are dropped. `HasLength` in bagof-validators refuses a
+    # mismatch in either direction.
+    assert Converter.get(tx.List[int]) is not None
+    assert collections.ToLength(2, tx.List[int])(["1", "2", "3"]) == [1, 2]
+
+
+def test_tolength_refuses_a_shorter_sequence() -> None:
+    with pytest.raises(ConversionError, match="length 2"):
+        collections.ToLength(2, tx.List[int])(["1"])
+
+
+def test_tolength_docstring_example() -> None:
+    to_pair = collections.ToLength(2, tx.List[int])
+    assert to_pair(["1", "2", "3"]) == [1, 2]
+    with pytest.raises(ConversionError):
+        to_pair(["1"])

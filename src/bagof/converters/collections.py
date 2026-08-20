@@ -516,7 +516,29 @@ class ToNamedTuple(Converter[TUPLE, tx.Any]):
 
 
 class ToLength(ToSequence[ITERABLE]):
-    """Converter for sequences of a fixed length."""
+    """
+    Converter for sequences of a fixed length.
+
+    A longer input is **truncated** to the requested length, and a
+    shorter one is refused. Coercing to a fixed length is a conversion
+    like any other, so the extra items are dropped rather than rejected.
+
+    !!! warning
+        This is deliberately more permissive than
+        `HasLength` in `bagof-validators`, which
+        refuses a mismatch in either direction. Validate first if you
+        need a long sequence to be an error rather than a trim.
+
+    !!! example
+        ```pycon
+        >>> from bagof.converters.collections import ToLength
+        >>> to_pair = ToLength(2, tx.List[int])
+        >>> to_pair(["1", "2", "3"])
+        [1, 2]
+        >>> to_pair(["1"])
+        ValueConversionError: Expected sequence of length 2, got 1.
+        ```
+    """
 
     def __init__(
         self,
@@ -539,8 +561,9 @@ class ToLength(ToSequence[ITERABLE]):
         self.length = length
 
     def __call__(self, value: tx.Any) -> ITERABLE:
-        """Convert the value to a sequence and check its length."""
+        """Convert the value to a sequence, trimmed to the length."""
         value = super().__call__(value)
+        # Trim before checking: a longer input is coerced, not refused.
         value = value[:self.length]
         if len(value) != self.length:
             raise self.value_error(
