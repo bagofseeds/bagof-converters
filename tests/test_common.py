@@ -549,3 +549,40 @@ def test_annotated_metadata_converter_explicit_hint_is_respected() -> None:
         tx.Annotated[str, ToRegexMatch(r"\d+", str)]
     )
     assert [c.hint for c in converter.converters] == [str]
+
+
+def test_annotated_metadata_registered_as_a_hint() -> None:
+    """A registered metadata key is handed to its converter as the hint."""
+    class _Marker:
+        pass
+
+    @common.ToAnnotated.register_metadata(_Marker)
+    class ToMarker(Converter):
+        DEFAULT = _Marker
+
+        def __call__(self, value: tx.Any) -> tx.Any:
+            return f"marked:{value}"
+
+    converter = common.ToAnnotated(tx.Annotated[str, _Marker])
+    assert isinstance(converter.converters[0], ToMarker)
+    assert converter("x") == "marked:x"
+
+
+def test_annotated_bare_metadata_class_says_what_is_missing() -> None:
+    """A converter that takes its own configuration first cannot be bare."""
+    # stdlib
+    import re
+
+    with pytest.raises(TypeError, match="configured instance"):
+        assert common.ToAnnotated(tx.Annotated[str, re.Pattern]).converters
+
+
+def test_bare_union_hint_is_rejected() -> None:
+    with pytest.raises(TypeError, match="empty or general union"):
+        common.ToUnion(tx.Union)
+
+
+def test_union_whose_branches_all_accept_anything_reports_any() -> None:
+    # `Union[Any, object]` survives as a union, and both branches accept
+    # anything -- the result must stay `Any` rather than collapse to one.
+    assert common._like_union(tx.Union[tx.Any, object]) is tx.Any

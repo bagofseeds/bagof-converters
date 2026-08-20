@@ -89,8 +89,12 @@ class ToNumber(Converter[NUMBER, tx.Any], register=numbers.Number):
             if result is not None:
                 return result  # type: ignore[return-value]
 
-        # Try the most general fallback
-        result = self._try_convert(value, fallbacks[0])
+        # Nothing converted while preserving equality, so fall back to the
+        # *widest* type the hint allows. `FALLBACKS` is ordered narrowest
+        # first, so that is the last entry -- `fallbacks[0]` is `bool`,
+        # which is the narrowest, and turned every unconvertible value
+        # into `True`.
+        result = self._try_convert(value, fallbacks[-1])
         return result  # type: ignore[return-value]
 
     def _try_convert(self, value: tx.Any, type: type) -> tx.Any:

@@ -193,3 +193,26 @@ def test_inherited_totality_in_either_spelling(TD: tx.Any) -> None:
     assert Converter.get(Child)({"required_key": "1"}) == {"required_key": 1}
     with pytest.raises(ConversionError, match="required_key"):
         Converter.get(Child)({"optional_key": 1})
+
+
+def _supports_closed() -> bool:
+    """Whether this `typing_extensions` understands `closed=True`."""
+    try:
+        class Probe(tx.TypedDict, closed=True):
+            probe: int
+    except TypeError:
+        return False
+    return getattr(Probe, "__closed__", False)
+
+
+@pytest.mark.skipif(
+    not _supports_closed(),
+    reason="this typing_extensions does not support closed TypedDicts",
+)
+def test_closed_typeddict_rejects_an_unexpected_key() -> None:
+    class Closed(tx.TypedDict, closed=True):
+        title: str
+
+    assert Converter.get(Closed)({"title": "Alien"}) == {"title": "Alien"}
+    with pytest.raises(ConversionError, match="Unexpected key 'year'"):
+        Converter.get(Closed)({"title": "Alien", "year": 1979})
