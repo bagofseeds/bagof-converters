@@ -1,11 +1,12 @@
 """Converters for standalone scalar types (UUID, Path, ...)."""
 
-__all__ = ["ToUUID", "ToPath", "ToBytes"]
+__all__ = ["ToUUID", "ToPath", "ToBytes", "ToSlice"]
 
 # stdlib
 import os
 import pathlib
 import uuid
+from collections import abc
 
 # dependencies
 import typing_extensions as tx
@@ -121,3 +122,75 @@ class ToBytes(Converter[T, tx.Any], register=bytes):
             value,
             f"Value of type {type(value)} is not bytes or a string.",
         )
+
+
+class ToSlice(Converter[T, tx.Any], register=slice):
+    """
+    Converter for [`slice`][].
+
+    Accepts a slice, or the arguments to build one: a sequence of one to
+    three components (`stop`, or `start, stop`, or `start, stop, step`),
+    a single integer read as `stop`, or `None` for the full slice. Each
+    component is converted to an [`int`][], so `["1", "5"]` works.
+
+    !!! warning
+        Without this converter, `slice` fell through to the base one,
+        which called `slice(value)` -- so *any* value was accepted and
+        became the `stop`: `(1, 2)` silently produced
+        `slice(None, (1, 2), None)`, and so did a string.
+
+    !!! example
+        ```pycon
+        >>> from bagof.converters import get_converter
+        >>> get_converter(slice)(["1", "5"])
+        slice(1, 5, None)
+        >>> get_converter(slice)(5)
+        slice(None, 5, None)
+        ```
+    """
+
+    DEFAULT = slice
+    FALLBACK = slice
+
+    def like(self, __reentrant: tuple = ()) -> tx.Any:
+        """Accept a slice, a 1-to-3 sequence, an integer, or `None`."""
+        return tx.Union[
+            slice, tx.Sequence[tx.Optional[int]], int, None
+        ]
+
+    def __call__(self, value: tx.Any) -> T:
+        """Convert the value to a slice."""
+        if safe_isinstance(value, slice):
+            return value
+        if value is None:
+            return slice(None)
+
+        if safe_isinstance(value, abc.Sequence) and not safe_isinstance(
+            value, (str, bytes)
+        ):
+            components = tuple(value)
+            if not 1 <= len(components) <= 3:
+                raise self.value_error(
+                    value,
+                    "A slice takes one to three components "
+                    f"(stop; start, stop; start, stop, step), got "
+                    f"{len(components)}.",
+                )
+        elif safe_isinstance(value, int) and not safe_isinstance(
+            value, bool
+        ):
+            # `slice(n)` is `[:n]`, matching the builtin.
+            components = (value,)
+        else:
+            raise self.type_error(
+                value,
+                f"Cannot build a slice from a value of type {type(value)}.",
+            )
+
+        return slice(*(self._component(each) for each in components))
+
+    def _component(self, value: tx.Any) -> tx.Optional[int]:
+        """Convert one component: an integer, or `None` for "unbounded"."""
+        if value is None:
+            return None
+        return self._wrap_converter(Converter.get(int))(value)
