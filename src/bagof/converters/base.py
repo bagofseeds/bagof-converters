@@ -237,7 +237,7 @@ class Converter(
     def get(
         hint: tx.Any,
         registry: ConverterRegistry = CONVERTERS,
-        fallback: tx.Optional[tx.Type["Converter"]] = None,
+        fallback: tx.Optional[tx.Type["Converter"]] = UNSET,
     ) -> tx.Optional["Converter"]:
         """
         Get the best-matching converter for a given type hint.
@@ -261,7 +261,8 @@ class Converter(
             Defaults to the global registry.
         fallback : Optional[Type[Converter]]
             The fallback converter class to use if no matching converter
-            is found.
+            is found. Defaults to [`Converter`][].
+            Pass `None` explicitly to get `None` instead of a fallback.
 
         Returns
         -------
@@ -278,7 +279,7 @@ class Converter(
     def get_class(
         hint: tx.Any,
         registry: ConverterRegistry = CONVERTERS,
-        fallback: tx.Optional[tx.Type["Converter"]] = None,
+        fallback: tx.Optional[tx.Type["Converter"]] = UNSET,
     ) -> tx.Optional[tx.Type["Converter"]]:
         """
         Get the best-matching converter class for a given type hint.
@@ -292,7 +293,8 @@ class Converter(
             Defaults to the global registry.
         fallback : Optional[Type[Converter]]
             The fallback converter class to use if no matching converter
-            is found.
+            is found. Defaults to [`Converter`][].
+            Pass `None` explicitly to get `None` instead of a fallback.
 
         Returns
         -------
@@ -301,6 +303,8 @@ class Converter(
             or `None` if no matching converter is found and no fallback
             is provided.
         """
+        if fallback is UNSET:
+            fallback = Converter
         return get_from_registry(hint, registry) or fallback
 
 
