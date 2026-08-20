@@ -368,6 +368,13 @@ class ToAnnotated(Converter[TO, FROM], register=tx.Annotated):
             if not safe_isinstance(arg, Converter):
                 arg = self._get_converter(arg)
             if safe_isinstance(arg, Converter):
+                if not arg.has_explicit_hint:
+                    # A metadata converter written without a hint of its
+                    # own converts to the annotated type. Without this, a
+                    # non-composable one - which replaces the base
+                    # converter - was left converting to its class
+                    # `DEFAULT` instead.
+                    arg = arg.rebind(unwrapped)
                 if getattr(arg, "compose", False):
                     converters.append(arg)
                 else:

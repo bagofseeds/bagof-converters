@@ -524,3 +524,28 @@ def test_register_alias_still_works() -> None:
         common.ToAnnotated.register.__func__
         is common.ToAnnotated.register_metadata.__func__
     )
+
+
+def test_annotated_metadata_converter_adopts_the_annotated_type() -> None:
+    # locals
+    from bagof.converters.strings import ToRegexMatch
+
+    # A non-composable converter replaces the base converter, so keeping
+    # its own class `DEFAULT` left it converting to the wrong type.
+    converter = common.ToAnnotated(tx.Annotated[str, ToRegexMatch(r"\d+")])
+    assert [c.hint for c in converter.converters] == [str]
+    assert converter(b"123") == "123"
+    with pytest.raises(ConversionError):
+        converter(b"abc")
+    # ... and it keeps its own configuration.
+    assert converter.converters[0].pattern.pattern == r"\d+"
+
+
+def test_annotated_metadata_converter_explicit_hint_is_respected() -> None:
+    # locals
+    from bagof.converters.strings import ToRegexMatch
+
+    converter = common.ToAnnotated(
+        tx.Annotated[str, ToRegexMatch(r"\d+", str)]
+    )
+    assert [c.hint for c in converter.converters] == [str]
