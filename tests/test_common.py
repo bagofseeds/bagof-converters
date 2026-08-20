@@ -457,3 +457,31 @@ def test_union_docstring_example() -> None:
     assert convert("5") == "5"
     assert convert(5) == 5
     assert convert(b"5") == 5
+
+
+# ----------------------------------------------------------------------
+# Error wrapping
+# ----------------------------------------------------------------------
+
+
+def test_wrapped_converter_preserves_a_conversion_error() -> None:
+    # `TypeConversionError` and `ValueConversionError` inherit the two
+    # builtins the wrapper catches, so without an explicit pass-through it
+    # downgrades every real failure to a generic "Invalid value."
+    with pytest.raises(ConversionError) as info:
+        Converter.get(tx.List[str])([1])
+    assert "not a string or bytes" in str(info.value)
+
+
+def test_wrapped_converter_converts_a_bare_builtin() -> None:
+
+    class Broken(Converter[complex, tx.Any]):
+        DEFAULT = complex
+
+        def __call__(self, value: tx.Any) -> tx.Any:
+            raise ValueError("plain failure")
+
+    wrapped = Converter(int)._wrap_converter(Broken(complex))
+    with pytest.raises(ConversionError) as info:
+        wrapped(1)
+    assert isinstance(info.value.__cause__, ValueError)
