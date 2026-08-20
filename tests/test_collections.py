@@ -1,4 +1,5 @@
 # stdlib
+import collections as std_collections
 from collections import abc
 
 # dependencies
@@ -10,6 +11,7 @@ from bagof.hints.typevars.co import INT, STR
 
 # locals
 from bagof.converters import collections
+from bagof.converters.base import Converter
 from bagof.converters.exceptions import ConversionError
 
 # --- ToIterable -------------------------------------------------------
@@ -307,3 +309,36 @@ def test_conversion_still_builds_concrete_containers(
     result = collections.Converter.get(hint)(value)
     assert type(result) is expected_type
     assert result == expected
+
+
+# ----------------------------------------------------------------------
+# Single-argument mappings
+# ----------------------------------------------------------------------
+
+
+def test_counter_converts_keys_and_values() -> None:
+    # `Counter[K]` is a `Mapping[K, int]`, so it carries one type
+    # argument. Indexing `args[1]` on one used to raise a bare
+    # `IndexError` from inside the converter.
+    result = Converter.get(tx.Counter[str])({"a": "1"})
+    assert result == {"a": 1}
+    assert isinstance(result["a"], int)
+
+
+def test_counter_rejects_a_bad_key() -> None:
+    with pytest.raises(ConversionError):
+        Converter.get(tx.Counter[str])({1: 2})
+
+
+def test_counter_like_is_well_formed() -> None:
+    like = Converter.get(tx.Counter[str]).like()
+    assert like is not tx.Any
+
+
+def test_mapping_args_helper() -> None:
+    assert collections._mapping_args((str, int), dict) == (str, int)
+    assert collections._mapping_args((str,), std_collections.Counter) == (
+        str, int
+    )
+    assert collections._mapping_args((str,), dict) == (str, tx.Any)
+    assert collections._mapping_args((), dict) == (tx.Any, tx.Any)

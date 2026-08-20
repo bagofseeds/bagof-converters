@@ -11,6 +11,7 @@ __all__ = [
 ]
 
 # stdlib
+import collections
 import inspect
 from collections import abc
 from functools import partial
@@ -32,6 +33,26 @@ from bagof.hints.typevars.co import ITERABLE, MAPPING, SEQUENCE, TUPLE
 # locals
 from .base import Converter, _process_reentrant
 from .exceptions import ValueConversionError
+
+
+def _mapping_args(
+    args: tx.Tuple[tx.Any, ...], origin: tx.Any
+) -> tx.Tuple[tx.Any, tx.Any]:
+    """
+    The (key, value) hints of a mapping, whatever arity it was written at.
+
+    Most mappings carry both (`Dict[str, int]`), but some fix their value
+    type and take only a key: `Counter[K]` is a `Mapping[K, int]`, and
+    indexing `args[1]` on one used to raise a bare `IndexError`.
+    """
+    if len(args) >= 2:
+        return args[0], args[1]
+    if not args:
+        return tx.Any, tx.Any
+    return args[0], _IMPLIED_VALUE_HINT.get(origin, tx.Any)
+
+
+_IMPLIED_VALUE_HINT: tx.Dict[tx.Any, tx.Any] = {collections.Counter: int}
 
 
 def _type_to_hint(x: tx.Any) -> tx.Any:
@@ -255,15 +276,17 @@ def _like_mapping(hint: tx.Any, __reentrant: tuple = ()) -> tx.Any:
 
     args = get_args_uw(hint)
     if args:
+        args = _mapping_args(args, get_origin_uw(hint))
         args = tuple(
             Converter.get(arg).like(__reentrant)
             for arg in args
         )
         args = tuple(arg for arg in args if arg is not UNSET)
-        return tx.Union[
-            tx.Iterable[tx.Tuple[args]],
-            tx.Mapping[args]
-        ]
+        if len(args) == 2:
+            return tx.Union[
+                tx.Iterable[tx.Tuple[args]],
+                tx.Mapping[args]
+            ]
 
     return tx.Union[
         tx.Iterable[tx.Tuple[tx.Any, tx.Any]],
@@ -285,8 +308,9 @@ def _to_mapping(
     input_type = type(value)
 
     if args:
-        key_converter = wrapper(Converter.get(args[0]))
-        val_converter = wrapper(Converter.get(args[1]))
+        key_hint, val_hint = _mapping_args(args, origin)
+        key_converter = wrapper(Converter.get(key_hint))
+        val_converter = wrapper(Converter.get(val_hint))
         if isinstance(value, abc.Mapping):
             value = value.items()
         value = {key_converter(k): val_converter(v) for k, v in value}
