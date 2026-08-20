@@ -330,7 +330,14 @@ class ToAnnotated(Converter[TO, FROM], register=tx.Annotated):
         converters = []
         for arg in safe_get_args(self.hint):
             if safe_issubclass(arg, Converter):
-                arg = arg(unwrapped)
+                # Bind by keyword. Not every converter takes `hint` first
+                # -- `ToLength(length, ...)` and `ToRegexMatch(pattern,
+                # ...)` take their own configuration there -- and passing
+                # positionally silently bound the annotated type as that
+                # argument. By keyword, such a class raises a `TypeError`
+                # naming what it is missing, which points at the real fix:
+                # write an instance rather than the bare class.
+                arg = arg(hint=unwrapped)
             if not safe_isinstance(arg, Converter):
                 arg = self._get_converter(arg)
             if safe_isinstance(arg, Converter):

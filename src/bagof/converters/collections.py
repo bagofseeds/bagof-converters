@@ -419,6 +419,7 @@ class ToLength(ToSequence[ITERABLE]):
         self,
         length: int,
         hint: tx.Any = UNSET,
+        compose: bool = False,
     ) -> None:
         """
         Parameters
@@ -427,8 +428,11 @@ class ToLength(ToSequence[ITERABLE]):
             The expected length of the sequence.
         hint : Any, optional
             The type hint to convert to.
+        compose : bool
+            Whether to compose this converter with others, when they are
+            found in [`Annotated`][typing.Annotated] metadata.
         """
-        super().__init__(hint)
+        super().__init__(hint, compose)
         self.length = length
 
     def __call__(self, value: tx.Any) -> ITERABLE:

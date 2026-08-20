@@ -334,3 +334,56 @@ def test_literal_returns_the_matching_literal(
     result = Converter.get(hint)(value)
     assert result == expected
     assert type(result) is type(expected)
+
+
+# ----------------------------------------------------------------------
+# Annotated metadata
+# ----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "cls,missing",
+    [("ToRegexMatch", "pattern"), ("ToLength", "length")],
+)
+def test_annotated_converter_class_needing_config_raises(
+    cls: str, missing: str
+) -> None:
+    # locals
+    from bagof.converters.collections import ToLength
+    from bagof.converters.strings import ToRegexMatch
+
+    # Passed positionally, the annotated type used to be bound as the
+    # converter's own first argument (a pattern, a length), producing a
+    # converter configured with a type object.
+    lookup = {"ToRegexMatch": ToRegexMatch, "ToLength": ToLength}
+    with pytest.raises(TypeError, match=missing):
+        assert common.ToAnnotated(tx.Annotated[str, lookup[cls]]).converters
+
+
+def test_annotated_converter_class_taking_hint_first_still_works() -> None:
+    # locals
+    from bagof.converters.strings import ToString
+
+    converter = common.ToAnnotated(tx.Annotated[str, ToString])
+    assert converter(b"hi") == "hi"
+
+
+def test_regex_converter_can_compose() -> None:
+    # locals
+    from bagof.converters.strings import ToRegexMatch
+
+    # `ToRegexMatch` took no `compose`, so it always replaced the base
+    # converter and could never be chained after it.
+    hint = tx.Annotated[str, ToRegexMatch(r"\d+", compose=True)]
+    converter = common.ToAnnotated(hint)
+    assert len(converter.converters) == 2
+    assert converter(b"123") == "123"
+    with pytest.raises(ConversionError):
+        converter(b"abc")
+
+
+def test_length_converter_can_compose() -> None:
+    # locals
+    from bagof.converters.collections import ToLength
+
+    assert ToLength(2, compose=True).compose is True
