@@ -342,3 +342,76 @@ def test_mapping_args_helper() -> None:
     )
     assert collections._mapping_args((str,), dict) == (str, tx.Any)
     assert collections._mapping_args((), dict) == (tx.Any, tx.Any)
+
+
+# ----------------------------------------------------------------------
+# NamedTuple
+# ----------------------------------------------------------------------
+
+
+class _Point(tx.NamedTuple):
+    x: int
+    y: str = "origin"
+
+
+class _Pair(tx.NamedTuple):
+    a: int
+    b: int
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ({"a": "1", "b": "2"}, _Pair(1, 2)),      # mapping by field name
+        (("1", "2"), _Pair(1, 2)),                # sequence in field order
+        (["1", "2"], _Pair(1, 2)),
+        (_Pair(1, 2), _Pair(1, 2)),               # already an instance
+    ],
+)
+def test_namedtuple_converts_from_mapping_or_sequence(
+    value: tx.Any, expected: tx.Any
+) -> None:
+    # A NamedTuple has no `__args__`, so `ToTuple` read a target length of
+    # zero and rejected everything.
+    result = Converter.get(_Pair)(value)
+    assert result == expected
+    assert type(result) is _Pair
+
+
+def test_namedtuple_uses_field_defaults_for_absent_fields() -> None:
+    assert Converter.get(_Point)(["1"]) == _Point(1, "origin")
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"a": 1, "z": 2},        # unknown field
+        [1, 2, 3],               # too many values
+        {"b": 2},                # missing field with no default
+        5,                       # not a mapping or sequence
+        "ab",                    # a string is not a field sequence
+    ],
+)
+def test_namedtuple_rejects_bad_input(value: tx.Any) -> None:
+    with pytest.raises(ConversionError):
+        Converter.get(_Pair)(value)
+
+
+def test_namedtuple_like_reports_what_it_accepts() -> None:
+    args = tx.get_args(Converter.get(_Pair).like())
+    assert _Pair in args
+
+
+@pytest.mark.parametrize(
+    "hint,value,expected",
+    [
+        (tx.Tuple[int, int], ["1", "2"], (1, 2)),
+        (tx.Tuple[int, ...], ["1", "2"], (1, 2)),
+    ],
+)
+def test_plain_tuples_are_unaffected(
+    hint: tx.Any, value: tx.Any, expected: tx.Any
+) -> None:
+    result = Converter.get(hint)(value)
+    assert result == expected
+    assert type(result) is tuple

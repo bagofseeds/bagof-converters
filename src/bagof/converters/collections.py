@@ -7,6 +7,7 @@ __all__ = [
     "ToMutableSet",
     "ToMapping",
     "ToTuple",
+    "ToNamedTuple",
     "ToLength",
 ]
 
@@ -335,10 +336,16 @@ class ToTuple(Converter[TUPLE, tx.Any], register=tuple):
 
     def like(self, __reentrant: tuple = ()) -> tx.Any:
         """Return the input hint for this converter."""
+        if _is_namedtuple(get_origin_uw(self.unwrapped)):
+            return ToNamedTuple(self.hint).like(__reentrant)
         return _like_tuple(self.unwrapped, __reentrant)
 
     def __call__(self, value: tx.Any) -> TUPLE:
         """Convert the value to a tuple, converting each element."""
+        if _is_namedtuple(get_origin_uw(self.unwrapped)):
+            # A NamedTuple is a `tuple` subclass with no `__args__`, so it
+            # would otherwise look zero-length and reject everything.
+            return ToNamedTuple(self.hint)(value)
         args = self.args
         return _to_tuple(
             value,
@@ -407,6 +414,102 @@ def _to_tuple(
         output_type = fallback
     output_type = wrapper(output_type)
     return output_type(value)
+
+
+def _is_namedtuple(origin: tx.Any) -> bool:
+    """Whether `origin` is a NamedTuple class rather than a plain tuple."""
+    return (
+        isinstance(origin, type)
+        and issubclass(origin, tuple)
+        and hasattr(origin, "_fields")
+        and hasattr(origin, "_field_defaults")
+    )
+
+
+class ToNamedTuple(Converter[TUPLE, tx.Any]):
+    """
+    Converter for [`NamedTuple`][typing.NamedTuple] subclasses.
+
+    Accepts a mapping keyed by field name, or any sequence in field
+    order, and converts each field through its declared type.
+
+    !!! note
+        A NamedTuple is a plain `tuple` subclass at runtime, so it cannot
+        be a registry key of its own;
+        [`ToTuple`][bagof.converters.collections.ToTuple] recognises one
+        and delegates here.
+
+    !!! example
+        ```pycon
+        >>> import typing_extensions as tx
+        >>> from bagof.converters import get_converter
+        >>> class Point(tx.NamedTuple):
+        ...     x: int
+        ...     y: int
+        >>> get_converter(Point)({"x": "1", "y": "2"})
+        Point(x=1, y=2)
+        >>> get_converter(Point)(["1", "2"])
+        Point(x=1, y=2)
+        ```
+    """
+
+    DEFAULT = tuple
+
+    def like(self, __reentrant: tuple = ()) -> tx.Any:
+        """Accept an instance, a mapping by field name, or a sequence."""
+        origin = get_origin_uw(self.unwrapped)
+        return tx.Union[
+            origin,
+            tx.Mapping[str, tx.Any],
+            tx.Sequence[tx.Any],
+        ]
+
+    def __call__(self, value: tx.Any) -> TUPLE:
+        """Convert the value field by field."""
+        cls = get_origin_uw(self.unwrapped)
+        fields = cls._fields
+        defaults = cls._field_defaults
+        hints = tx.get_type_hints(cls, include_extras=True)
+
+        if safe_isinstance(value, abc.Mapping):
+            given = dict(value)
+            unknown = set(given) - set(fields)
+            if unknown:
+                raise self.value_error(
+                    value,
+                    f"Unexpected field(s) {sorted(unknown)!r} "
+                    f"for {cls.__name__}.",
+                )
+        elif safe_isinstance(value, abc.Iterable) and not safe_isinstance(
+            value, (str, bytes)
+        ):
+            items = list(value)
+            if len(items) > len(fields):
+                raise self.value_error(
+                    value,
+                    f"Expected at most {len(fields)} values for "
+                    f"{cls.__name__}, got {len(items)}.",
+                )
+            given = dict(zip(fields, items))
+        else:
+            raise self.type_error(
+                value,
+                f"Cannot build {cls.__name__} from "
+                f"a value of type {type(value)}.",
+            )
+
+        values = {}
+        for name in fields:
+            if name in given:
+                converter = Converter.get(hints.get(name, tx.Any))
+                values[name] = self._wrap_converter(converter)(given[name])
+            elif name in defaults:
+                values[name] = defaults[name]
+            else:
+                raise self.value_error(
+                    value, f"Missing field {name!r} for {cls.__name__}."
+                )
+        return cls(**values)
 
 
 # --- Length ------------------------------------------------------------
