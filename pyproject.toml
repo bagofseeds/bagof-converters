@@ -26,8 +26,8 @@ dynamic = ["version"]
 requires-python = ">=3.8"
 dependencies = [
     "typing_extensions >= 4.13",
-    "bagof-hints @ git+https://github.com/bagofseeds/bagof-hints.git",
-    "bagof-core-magic @ git+https://github.com/bagofseeds/bagof-core-magic.git",
+    "bagof-hints ~= 0.1",
+    "bagof-core-magic ~= 0.1",
 ]
 
 [project.urls]
