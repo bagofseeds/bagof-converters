@@ -54,6 +54,19 @@ def test_to_str_accepts_what_like_advertises() -> None:
     strings.ToString()(b"hello")
 
 
+class _NoReprStr(str):
+    """A str whose `repr` raises, to catch eager error construction."""
+
+    def __repr__(self) -> str:
+        raise AssertionError("repr(value) was computed on a successful call")
+
+
+def test_to_str_success_does_not_repr_value() -> None:
+    # The "not a string" error embeds `repr(value)`, which is expensive for
+    # large values. A successful conversion must not build it.
+    assert strings.ToString()(_NoReprStr("hi")) == "hi"
+
+
 # --- ToRegexMatch -----------------------------------------------------
 
 

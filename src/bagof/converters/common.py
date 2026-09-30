@@ -141,8 +141,12 @@ class ToUnion(Converter[TO, FROM], register=(tx.Union, UnionType)):
 
     def __call__(self, value: FROM) -> TO:
         """Try each branch of the union in order; raise if none succeeds."""
+        # Pass the error factory, not a built error: a successful conversion
+        # is the common case, and building the error eagerly paid for
+        # `repr(value)` (which is expensive for e.g. numpy arrays) on every
+        # call. `_to_union` calls this only when every branch has failed.
         return _to_union(
-            value, self.unwrapped, self._notinunion_error(value)
+            value, self.unwrapped, lambda: self._notinunion_error(value)
         )
 
     def _notinunion_error(self, value: tx.Any) -> TypeConversionError:
@@ -193,7 +197,9 @@ def _like_union(hint: tx.Any, __reentrant: tuple = ()) -> tx.Any:
 
 
 def _to_union(
-    value: tx.Any, hint: tx.Any, type_error: TypeConversionError
+    value: tx.Any,
+    hint: tx.Any,
+    type_error: tx.Callable[[], TypeConversionError],
 ) -> tx.Any:
     args = get_args_uw(hint)
 
@@ -224,7 +230,7 @@ def _to_union(
             errors.append(e)
             continue
 
-    raise type_error from MultipleCauses(errors)
+    raise type_error() from MultipleCauses(errors)
 
 
 # --- Literal ----------------------------------------------------------

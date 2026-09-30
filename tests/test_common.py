@@ -71,6 +71,23 @@ def test_union_invalid(hint: tx.Any, value: tx.Any) -> None:
         converter(value)
 
 
+class _NoRepr:
+    """A value whose `repr` raises, to catch eager error construction."""
+
+    def __repr__(self) -> str:
+        raise AssertionError("repr(value) was computed on a successful call")
+
+
+def test_union_success_does_not_repr_value() -> None:
+    # The no-match error embeds `repr(value)`, which is expensive (e.g. a
+    # large numpy array). A successful conversion must not pay for it, so
+    # the error is built only once every branch has failed. A value that
+    # already matches a branch is returned unchanged without a repr.
+    converter = common.ToUnion(tx.Union[_NoRepr, int])
+    value = _NoRepr()
+    assert converter(value) is value
+
+
 # --- ToLiteral --------------------------------------------------------
 
 
