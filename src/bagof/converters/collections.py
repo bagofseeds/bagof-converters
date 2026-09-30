@@ -347,12 +347,16 @@ class ToTuple(Converter[TUPLE, tx.Any], register=tuple):
             # would otherwise look zero-length and reject everything.
             return ToNamedTuple(self.hint)(value)
         args = self.args
+        # Pass the error factory, not a built error: building it eagerly
+        # paid for `repr(value)` on every successful conversion (see
+        # `ToUnion.__call__`). `_to_tuple` calls it only on a length
+        # mismatch.
         return _to_tuple(
             value,
             self.unwrapped,
             self.fallback,
             self._wrap_converter,
-            self._length_error(value, len(args)),
+            lambda: self._length_error(value, len(args)),
         )
 
     def _length_error(
@@ -388,7 +392,7 @@ def _like_tuple(hint: tx.Any, __reentrant: tuple = ()) -> tx.Any:
 
 def _to_tuple(
     value: tx.Any, hint: tx.Any, fallback: tx.Any,
-    wrapper: tx.Callable, length_error: tx.Any,
+    wrapper: tx.Callable, length_error: tx.Callable[[], tx.Any],
 ) -> tx.Any:
     input_type = type(value)
     origin = get_origin_uw(hint)
@@ -401,7 +405,7 @@ def _to_tuple(
         else:
             value = tuple(value)
             if len(value) != len(args):
-                raise length_error
+                raise length_error()
             converters = map(wrapper, map(Converter.get, args))
             value = (
                 converter(val)

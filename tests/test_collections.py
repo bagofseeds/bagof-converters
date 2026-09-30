@@ -150,6 +150,21 @@ def test_tuple_invalid(hint: tx.Any, value: tx.Any) -> None:
         converter(value)
 
 
+class _NoReprList(list):
+    """A list whose `repr` raises, to catch eager error construction."""
+
+    def __repr__(self) -> str:
+        raise AssertionError("repr(value) was computed on a successful call")
+
+
+def test_tuple_success_does_not_repr_value() -> None:
+    # The length-mismatch error embeds `repr(value)`, which is expensive
+    # for large values. A successful, correctly-sized conversion must not
+    # build it.
+    converter = collections.ToTuple(tx.Tuple[int, int])
+    assert converter(_NoReprList([1, 2])) == (1, 2)
+
+
 # --- ToLength ---------------------------------------------------------
 
 

@@ -42,12 +42,16 @@ class ToString(Converter[STR, tx.Any], register=str):
 
     def __call__(self, value: tx.Any) -> STR:
         """Convert the value to a string."""
+        # Pass the error factory, not a built error: building it eagerly
+        # paid for `repr(value)` on every successful conversion (see
+        # `ToUnion.__call__`). `_to_str` calls it only when the value is
+        # not string-like.
         return _to_str(
             value,
             self.unwrapped,
             self.fallback,
             self._wrap_converter,
-            self._nostrlike_error(value),
+            lambda: self._nostrlike_error(value),
         )
 
     def _nostrlike_error(self, value: tx.Any) -> TypeConversionError:
@@ -62,7 +66,7 @@ def _to_str(
     hint: tx.Any,
     fallback: tx.Any,
     wrapper: tx.Callable,
-    type_error: TypeConversionError,
+    type_error: tx.Callable[[], TypeConversionError],
 ) -> tx.Any:
     from bagof.core.magic import get_origin_uw
     input_type = type(value)
@@ -70,7 +74,7 @@ def _to_str(
 
     # Fail for non-string-like values
     if not (safe_isinstance(value, str) or safe_isinstance(value, bytes)):
-        raise type_error
+        raise type_error()
 
     # Decode bytes
     if safe_isinstance(value, bytes):
