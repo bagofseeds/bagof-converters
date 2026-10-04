@@ -12,8 +12,9 @@ __all__ = [
 # stdlib
 import importlib
 import importlib.util
-import re
 import sys
+import types
+import typing
 
 # dependencies
 import typing_extensions as tx  # noqa: I001
@@ -52,14 +53,14 @@ TO = tx.TypeVar("TO")
 CONVERTERS: ConverterRegistry = {}
 """The global registry of converters."""
 
-_NAME_KEY = re.compile(r"^[\w.]+:[\w.]+$")
-"""Pattern of a lazy, qualified-name registry key (`"module:qualname"`)."""
+_FORWARD_REFS = tuple({typing.ForwardRef, tx.ForwardRef})
+"""The forward-reference types that make a lazy registry key."""
 
 _PENDING: tx.List[tx.Tuple[ConverterRegistry, str, tx.Type["Converter"]]] = []
 """
-Name-keyed registrations whose module has not been imported yet, as
-`(registry, "module:qualname", converter)`. They are moved into their
-registry -- keyed by the real object -- once the module is in
+Registrations keyed by a forward reference whose target has not been
+imported yet, as `(registry, "dotted.name", converter)`. They are moved
+into their registry -- keyed by the real object -- once its module is in
 [`sys.modules`][]. A hint or value of a type from a module that was never
 imported cannot reach the registry, so nothing is lost by waiting.
 """
@@ -73,12 +74,41 @@ def _has_module(name: str) -> bool:
         return False
 
 
-def _import_name(key: str) -> tx.Any:
-    """Import the object named by `"module"` or `"module:qualname"`."""
-    module, _, qualname = key.partition(":")
-    obj = importlib.import_module(module)
-    for attr in filter(None, qualname.split(".")):
-        obj = getattr(obj, attr)
+def _import_name(name: str) -> tx.Any:
+    """Import the object named by a fully-qualified dotted name."""
+    first, *rest = name.split(".")
+    obj = importlib.import_module(first)
+    for attr in rest:
+        try:
+            obj = getattr(obj, attr)
+        except AttributeError:
+            # A submodule that has not been imported yet.
+            obj = importlib.import_module(f"{obj.__name__}.{attr}")
+    return obj
+
+
+def _find_name(name: str) -> tx.Any:
+    """
+    The object named by a fully-qualified dotted name, if it is already
+    imported, or `UNSET`. Never imports anything.
+    """
+    parts = name.split(".")
+    for i in range(len(parts), 0, -1):
+        obj = sys.modules.get(".".join(parts[:i]))
+        if obj is not None:
+            break
+    else:
+        return UNSET
+    for attr in parts[i:]:
+        if isinstance(obj, types.ModuleType):
+            # Read the module dict directly: a module-level `__getattr__`
+            # (PEP 562) may import on access.
+            obj = vars(obj).get(attr, UNSET)
+        else:
+            obj = getattr(obj, attr, UNSET)
+        if obj is UNSET:
+            # Not imported yet, or still initialising.
+            return UNSET
     return obj
 
 
@@ -90,32 +120,25 @@ class _lazy:
     !!! example
         ```python
         class ToDaskArray(ArrayConverter):
-            DEFAULT = _lazy("dask.array:Array")
+            DEFAULT = _lazy("dask.array.Array")
         ```
     """
 
-    def __init__(self, key: str) -> None:
-        self.key = key
+    def __init__(self, name: str) -> None:
+        self.name = name
 
     def __get__(self, obj: tx.Any, owner: tx.Any = None) -> tx.Any:
         if "value" not in self.__dict__:
-            self.value = _import_name(self.key)
+            self.value = _import_name(self.name)
         return self.value
 
 
 def _resolve_pending() -> None:
-    """Register the pending name keys whose module is now imported."""
+    """Register the pending forward-reference keys that are now imported."""
     for entry in list(_PENDING):
-        registry, key, cls = entry
-        module, _, qualname = key.partition(":")
-        obj = sys.modules.get(module)
-        if obj is None:
-            continue
-        try:
-            for attr in qualname.split("."):
-                obj = getattr(obj, attr)
-        except AttributeError:
-            # Still initialising (or no such name): try again next time.
+        registry, name, cls = entry
+        obj = _find_name(name)
+        if obj is UNSET:
             continue
         _PENDING.remove(entry)
         registry[obj] = cls
@@ -291,9 +314,12 @@ class Converter(
         ----------
         *hints
             One or more type hints to register the converter class for.
-            A string `"module:qualname"` (e.g. `"dask.array:Array"`)
-            registers the object of that name lazily, without importing
-            `module`: the key is resolved once `module` has been imported.
+
+            A [`ForwardRef`][typing.ForwardRef] key holds the
+            fully-qualified dotted name of an object, e.g.
+            `ForwardRef("dask.array.Array")`, and registers that object
+            lazily: nothing is imported, and the key is resolved once
+            its module has been imported (by anyone else).
         registry : ConverterRegistry
             The registry to register the converter class in.
             Defaults to the global registry.
@@ -308,12 +334,15 @@ class Converter(
             # registration still wins, whichever kind of key each one is.
             _resolve_pending()
             for hint in hints_:
-                if isinstance(hint, str) and _NAME_KEY.match(hint):
+                if isinstance(hint, _FORWARD_REFS):
+                    # Compare names: `ForwardRef` equality also involves
+                    # fields that vary across Python versions.
+                    name = hint.__forward_arg__
                     _PENDING[:] = [
                         entry for entry in _PENDING
-                        if entry[0] is not registry or entry[1] != hint
+                        if entry[0] is not registry or entry[1] != name
                     ]
-                    _PENDING.append((registry, hint, cls))
+                    _PENDING.append((registry, name, cls))
                 else:
                     registry[hint] = cls
             _resolve_pending()

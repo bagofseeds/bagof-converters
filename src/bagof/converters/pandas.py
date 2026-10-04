@@ -15,12 +15,13 @@ if tx.TYPE_CHECKING:
 
 
 # pandas is only imported once a pandas converter is actually used: the
-# registry keys are names, resolved once `pandas` has been imported by the
-# caller -- see `Converter.register`.
+# registry keys are forward references, resolved once `pandas` has been
+# imported by the caller -- see `Converter.register`.
 if tx.TYPE_CHECKING or _has_module("pandas"):
 
     class ToDataFrame(
-        Converter[tx.Any, tx.Any], register="pandas:DataFrame"
+        Converter[tx.Any, tx.Any],
+        register=tx.ForwardRef("pandas.DataFrame"),
     ):
         """
         Converter for [`pandas.DataFrame`][].
@@ -34,7 +35,7 @@ if tx.TYPE_CHECKING or _has_module("pandas"):
             [`pandas.DataFrame`][] constructor.
         """
 
-        DEFAULT = _lazy("pandas:DataFrame")
+        DEFAULT = _lazy("pandas.DataFrame")
 
         def like(self, __reentrant: tuple = ()) -> tx.Any:
             """A frame, a mapping of columns, or an iterable of rows."""
@@ -42,7 +43,10 @@ if tx.TYPE_CHECKING or _has_module("pandas"):
 
             return tx.Union[pd.DataFrame, tx.Mapping, tx.Iterable]
 
-    class ToSeries(Converter[tx.Any, tx.Any], register="pandas:Series"):
+    class ToSeries(
+        Converter[tx.Any, tx.Any],
+        register=tx.ForwardRef("pandas.Series"),
+    ):
         """
         Converter for [`pandas.Series`][].
 
@@ -51,7 +55,7 @@ if tx.TYPE_CHECKING or _has_module("pandas"):
         the [`pandas.Series`][] constructor.
         """
 
-        DEFAULT = _lazy("pandas:Series")
+        DEFAULT = _lazy("pandas.Series")
 
         def like(self, __reentrant: tuple = ()) -> tx.Any:
             """A series, an iterable of values, or a mapping."""

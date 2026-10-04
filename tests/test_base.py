@@ -92,7 +92,8 @@ def test_conversion_error_accepts_the_converter_alias() -> None:
     assert error.this is converter
 
 
-# --- lazy name keys (#55) ---------------------------------------------
+
+# --- lazy forward-reference keys (#55) --------------------------------
 
 
 def _fake_module(name: str, monkeypatch: tx.Any) -> tx.Any:
@@ -104,8 +105,12 @@ def _fake_module(name: str, monkeypatch: tx.Any) -> tx.Any:
     return module
 
 
-def test_name_key_waits_for_its_module(monkeypatch: tx.Any) -> None:
-    """A `"module:name"` key is registered once the module is imported."""
+class _Thing:
+    pass
+
+
+def test_forward_ref_key_waits_for_its_module(monkeypatch: tx.Any) -> None:
+    """A `ForwardRef` key is registered once its module is imported."""
     import sys
 
     registry: tx.Dict[tx.Any, tx.Any] = {}
@@ -113,19 +118,18 @@ def test_name_key_waits_for_its_module(monkeypatch: tx.Any) -> None:
     class ToLazy(Converter):
         pass
 
-    Converter.register(ToLazy, "_bagof_lazy_mod:Thing", registry=registry)
+    Converter.register(
+        ToLazy, tx.ForwardRef("_bagof_lazy_mod.Thing"), registry=registry
+    )
     assert "_bagof_lazy_mod" not in sys.modules
     assert registry == {}
 
-    class Thing:
-        pass
-
-    _fake_module("_bagof_lazy_mod", monkeypatch).Thing = Thing
-    assert Converter.get_class(Thing, registry) is ToLazy
-    assert registry == {Thing: ToLazy}
+    _fake_module("_bagof_lazy_mod", monkeypatch).Thing = _Thing
+    assert Converter.get_class(_Thing, registry) is ToLazy
+    assert registry == {_Thing: ToLazy}
 
 
-def test_name_key_of_a_partial_module_stays_pending(
+def test_forward_ref_key_of_a_partial_module_stays_pending(
     monkeypatch: tx.Any,
 ) -> None:
     """A module still initialising (name not defined yet) is retried."""
@@ -136,25 +140,71 @@ def test_name_key_of_a_partial_module_stays_pending(
 
     module = _fake_module("_bagof_lazy_partial", monkeypatch)
     Converter.register(
-        ToLazy, "_bagof_lazy_partial:Thing", registry=registry
+        ToLazy, tx.ForwardRef("_bagof_lazy_partial.Thing"), registry=registry
     )
     assert registry == {}
 
-    class Thing:
-        pass
-
-    module.Thing = Thing
-    assert Converter.get_class(Thing, registry) is ToLazy
+    module.Thing = _Thing
+    assert Converter.get_class(_Thing, registry) is ToLazy
 
 
-def test_name_key_and_real_key_last_registration_wins(
-    monkeypatch: tx.Any,
-) -> None:
-    """Name and real keys for one object keep "last one wins"."""
+def test_forward_ref_key_to_a_nested_class(monkeypatch: tx.Any) -> None:
+    """The part after the module is walked as attributes."""
     registry: tx.Dict[tx.Any, tx.Any] = {}
 
-    class Thing:
+    class Outer:
+        class Inner:
+            pass
+
+    class ToLazy(Converter):
         pass
+
+    _fake_module("_bagof_lazy_nested", monkeypatch).Outer = Outer
+    Converter.register(
+        ToLazy,
+        tx.ForwardRef("_bagof_lazy_nested.Outer.Inner"),
+        registry=registry,
+    )
+    assert registry == {Outer.Inner: ToLazy}
+
+
+def test_forward_ref_key_of_an_unloaded_submodule_stays_pending(
+    monkeypatch: tx.Any,
+) -> None:
+    """A loaded parent package does not resolve an unloaded submodule."""
+    registry: tx.Dict[tx.Any, tx.Any] = {}
+
+    class ToLazy(Converter):
+        pass
+
+    _fake_module("_bagof_lazy_pkg", monkeypatch)
+    Converter.register(
+        ToLazy, tx.ForwardRef("_bagof_lazy_pkg.sub.Thing"), registry=registry
+    )
+    assert Converter.get_class(_Thing, registry, fallback=None) is None
+    assert registry == {}
+
+    # the longest loaded prefix is used once the submodule is imported
+    _fake_module("_bagof_lazy_pkg.sub", monkeypatch).Thing = _Thing
+    assert Converter.get_class(_Thing, registry) is ToLazy
+
+
+def test_plain_string_key_is_not_lazy() -> None:
+    """Only `ForwardRef` keys are lazy; a string is an ordinary key."""
+    registry: tx.Dict[tx.Any, tx.Any] = {}
+
+    class ToStr(Converter):
+        pass
+
+    Converter.register(ToStr, "a:b", registry=registry)
+    assert registry == {"a:b": ToStr}
+
+
+def test_forward_ref_key_and_real_key_last_registration_wins(
+    monkeypatch: tx.Any,
+) -> None:
+    """Forward-ref and real keys for one object keep "last one wins"."""
+    registry: tx.Dict[tx.Any, tx.Any] = {}
 
     class First(Converter):
         pass
@@ -165,15 +215,17 @@ def test_name_key_and_real_key_last_registration_wins(
     class Third(Converter):
         pass
 
-    # name, then name: the second replaces the first while pending
-    Converter.register(First, "_bagof_lazy_order:Thing", registry=registry)
-    Converter.register(Second, "_bagof_lazy_order:Thing", registry=registry)
+    # ref, then ref: the second replaces the first while pending (the
+    # refs compare by name, whatever else `ForwardRef` equality involves)
+    ref = "_bagof_lazy_order.Thing"
+    Converter.register(First, tx.ForwardRef(ref), registry=registry)
+    Converter.register(Second, tx.ForwardRef(ref), registry=registry)
     module = _fake_module("_bagof_lazy_order", monkeypatch)
-    module.Thing = Thing
-    # real key registered after: it wins over the pending name key
-    Converter.register(Third, Thing, registry=registry)
-    assert Converter.get_class(Thing, registry) is Third
+    module.Thing = _Thing
+    # real key registered after: it wins over the pending ref key
+    Converter.register(Third, _Thing, registry=registry)
+    assert Converter.get_class(_Thing, registry) is Third
 
-    # real, then name (module loaded): the name key wins
-    Converter.register(First, "_bagof_lazy_order:Thing", registry=registry)
-    assert Converter.get_class(Thing, registry) is First
+    # real, then ref (module loaded): the ref key wins
+    Converter.register(First, tx.ForwardRef(ref), registry=registry)
+    assert Converter.get_class(_Thing, registry) is First
