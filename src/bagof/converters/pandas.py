@@ -5,8 +5,10 @@ __all__: list = []
 # dependencies
 import typing_extensions as tx
 
+# bags
+from bagof.core.magic import has_module, lazy_import
+
 # locals
-from ._lazy import has_module, lazy_import
 from .base import Converter
 
 if tx.TYPE_CHECKING:

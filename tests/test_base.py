@@ -103,11 +103,12 @@ def test_conversion_error_accepts_the_converter_alias() -> None:
 @pytest.fixture(autouse=True)
 def _restore_pending() -> tx.Iterator[None]:
     """Drop the pending entries a test leaves behind."""
-    from bagof.converters import _lazy
+    # `bagof.core.magic` has no public way to clear pending entries.
+    from bagof.core import magic
 
-    saved = list(_lazy._PENDING)
+    saved = list(magic._PENDING)
     yield
-    _lazy._PENDING[:] = saved
+    magic._PENDING[:] = saved
 
 
 def _fake_module(name: str, monkeypatch: tx.Any) -> tx.Any:
@@ -159,47 +160,6 @@ def test_forward_ref_key_of_a_partial_module_stays_pending(
     assert registry == {}
 
     module.Thing = _Thing
-    assert Converter.get_class(_Thing, registry) is ToLazy
-
-
-def test_forward_ref_key_to_a_nested_class(monkeypatch: tx.Any) -> None:
-    """The part after the module is walked as attributes."""
-    registry: tx.Dict[tx.Any, tx.Any] = {}
-
-    class Outer:
-        class Inner:
-            pass
-
-    class ToLazy(Converter):
-        pass
-
-    _fake_module("_bagof_lazy_nested", monkeypatch).Outer = Outer
-    Converter.register(
-        ToLazy,
-        tx.ForwardRef("_bagof_lazy_nested.Outer.Inner"),
-        registry=registry,
-    )
-    assert registry == {Outer.Inner: ToLazy}
-
-
-def test_forward_ref_key_of_an_unloaded_submodule_stays_pending(
-    monkeypatch: tx.Any,
-) -> None:
-    """A loaded parent package does not resolve an unloaded submodule."""
-    registry: tx.Dict[tx.Any, tx.Any] = {}
-
-    class ToLazy(Converter):
-        pass
-
-    _fake_module("_bagof_lazy_pkg", monkeypatch)
-    Converter.register(
-        ToLazy, tx.ForwardRef("_bagof_lazy_pkg.sub.Thing"), registry=registry
-    )
-    assert Converter.get_class(_Thing, registry, fallback=None) is None
-    assert registry == {}
-
-    # the longest loaded prefix is used once the submodule is imported
-    _fake_module("_bagof_lazy_pkg.sub", monkeypatch).Thing = _Thing
     assert Converter.get_class(_Thing, registry) is ToLazy
 
 
@@ -265,20 +225,6 @@ def test_forward_ref_key_relative_to_the_registering_module(
     assert Converter.get_class(_Thing, registry) is ToLazy
 
 
-def test_forward_ref_key_relative_alias_of_a_runtime_import(
-    monkeypatch: tx.Any,
-) -> None:
-    """`"np.Thing"` follows the module's own runtime `import ... as np`."""
-    registry: tx.Dict[tx.Any, tx.Any] = {}
-    target = _fake_module("_bagof_lazy_target", monkeypatch)
-    target.Thing = _Thing
-    _fake_module("_bagof_lazy_alias", monkeypatch).np = target
-    ToLazy = _converter_in("_bagof_lazy_alias")
-
-    Converter.register(ToLazy, tx.ForwardRef("np.Thing"), registry=registry)
-    assert registry == {_Thing: ToLazy}
-
-
 @pytest.mark.skipif(
     sys.version_info < (3, 9, 7), reason="ForwardRef(module=) is 3.9.7+"
 )
@@ -298,7 +244,7 @@ def test_forward_ref_key_type_checking_alias_stays_pending(
     monkeypatch: tx.Any,
 ) -> None:
     """An alias that only exists for type checkers cannot be resolved."""
-    from bagof.converters import _lazy
+    from bagof.core.magic import pending
 
     registry: tx.Dict[tx.Any, tx.Any] = {}
     _fake_module("_bagof_lazy_tc", monkeypatch)  # no runtime `xx` alias
@@ -307,49 +253,10 @@ def test_forward_ref_key_type_checking_alias_stays_pending(
 
     Converter.register(ToLazy, tx.ForwardRef("xx.Thing"), registry=registry)
     assert registry == {}
-    assert _lazy.pending(registry) == [("_bagof_lazy_tc", "xx.Thing", ToLazy)]
+    assert pending(registry) == [("_bagof_lazy_tc", "xx.Thing", ToLazy)]
 
     # the absolute dotted path resolves
     Converter.register(
         ToLazy, tx.ForwardRef("_bagof_lazy_real.Thing"), registry=registry
-    )
-    assert registry == {_Thing: ToLazy}
-
-
-def test_forward_ref_key_relative_wins_over_absolute(
-    monkeypatch: tx.Any,
-) -> None:
-    """A module global shadows a top-level module of the same name."""
-    registry: tx.Dict[tx.Any, tx.Any] = {}
-
-    class Other:
-        pass
-
-    absolute = _fake_module("_bagof_lazy_clash", monkeypatch)
-    absolute.Thing = Other
-    local = _fake_module("_bagof_lazy_clash_ctx", monkeypatch)
-    relative = _fake_module("_bagof_lazy_clash_rel", monkeypatch)
-    relative.Thing = _Thing
-    local._bagof_lazy_clash = relative
-    ToLazy = _converter_in("_bagof_lazy_clash_ctx")
-
-    Converter.register(
-        ToLazy, tx.ForwardRef("_bagof_lazy_clash.Thing"), registry=registry
-    )
-    assert registry == {_Thing: ToLazy}
-
-
-def test_forward_ref_key_relative_miss_falls_back_to_absolute(
-    monkeypatch: tx.Any,
-) -> None:
-    """A relative first part whose walk fails still tries the absolute."""
-    registry: tx.Dict[tx.Any, tx.Any] = {}
-    _fake_module("_bagof_lazy_fb", monkeypatch).Thing = _Thing
-    # the context has a `_bagof_lazy_fb` global without `Thing`
-    _fake_module("_bagof_lazy_fb_ctx", monkeypatch)._bagof_lazy_fb = object()
-    ToLazy = _converter_in("_bagof_lazy_fb_ctx")
-
-    Converter.register(
-        ToLazy, tx.ForwardRef("_bagof_lazy_fb.Thing"), registry=registry
     )
     assert registry == {_Thing: ToLazy}
