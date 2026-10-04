@@ -7,7 +7,7 @@ import typing_extensions as tx
 
 # locals
 from ._arrays import ArrayConverter
-from .base import _has_module, _lazy
+from ._lazy import has_module, lazy_import
 
 if tx.TYPE_CHECKING:
     # Import the bare module so mkdocstrings resolves the `dask.array.*`
@@ -18,7 +18,7 @@ if tx.TYPE_CHECKING:
 # dask is only imported once a dask converter is actually used: the
 # registry keys are forward references, resolved once `dask.array` (or the
 # hint module) has been imported by the caller -- see `Converter.register`.
-if tx.TYPE_CHECKING or _has_module("dask"):
+if tx.TYPE_CHECKING or has_module("dask"):
 
     class ToDaskArray(
         ArrayConverter,
@@ -29,12 +29,12 @@ if tx.TYPE_CHECKING or _has_module("dask"):
     ):
         """Converter for [`dask.array.Array`][]."""
 
-        DEFAULT = _lazy("dask.array.Array")
-        ARRAY = _lazy("dask.array")
+        DEFAULT = lazy_import("dask.array.Array")
+        ARRAY = lazy_import("dask.array")
         # dask arrays carry numpy dtypes, so the scalar tables come from numpy.
-        SCALARS = _lazy("numpy")
-        ARRAY_TYPE = _lazy("dask.array.Array")
-        HINT_TYPE = _lazy("bagof.hints.dask.Array")
+        SCALARS = lazy_import("numpy")
+        ARRAY_TYPE = lazy_import("dask.array.Array")
+        HINT_TYPE = lazy_import("bagof.hints.dask.Array")
         # dask has no ``Array.view(cls)``; a subclass is built via its
         # constructor instead.
         CAN_VIEW = False

@@ -7,7 +7,7 @@ import typing_extensions as tx
 
 # locals
 from ._arrays import ArrayConverter
-from .base import _has_module, _lazy
+from ._lazy import has_module, lazy_import
 
 if tx.TYPE_CHECKING:
     # Import the bare module so mkdocstrings resolves the `cupy.*`
@@ -18,7 +18,7 @@ if tx.TYPE_CHECKING:
 # cupy is only imported once a cupy converter is actually used: the
 # registry keys are forward references, resolved once `cupy` (or the hint
 # module) has been imported by the caller -- see `Converter.register`.
-if tx.TYPE_CHECKING or _has_module("cupy"):  # pragma: no cover
+if tx.TYPE_CHECKING or has_module("cupy"):  # pragma: no cover
     # cupy needs a CUDA toolchain and cannot be installed on a CPU runner,
     # so this converter is only ever type-checked, never exercised in CI.
 
@@ -31,9 +31,9 @@ if tx.TYPE_CHECKING or _has_module("cupy"):  # pragma: no cover
     ):
         """Converter for [`cupy.ndarray`][]."""
 
-        DEFAULT = _lazy("cupy.ndarray")
-        ARRAY = SCALARS = _lazy("cupy")
-        ARRAY_TYPE = _lazy("cupy.ndarray")
-        HINT_TYPE = _lazy("bagof.hints.cupy.ndarray")
+        DEFAULT = lazy_import("cupy.ndarray")
+        ARRAY = SCALARS = lazy_import("cupy")
+        ARRAY_TYPE = lazy_import("cupy.ndarray")
+        HINT_TYPE = lazy_import("bagof.hints.cupy.ndarray")
 
     __all__ += ["ToCupyArray"]

@@ -6,7 +6,8 @@ __all__: list = []
 import typing_extensions as tx
 
 # locals
-from .base import Converter, _has_module, _lazy
+from ._lazy import has_module, lazy_import
+from .base import Converter
 
 if tx.TYPE_CHECKING:
     # Import the bare module so mkdocstrings resolves the `pandas.*`
@@ -17,7 +18,7 @@ if tx.TYPE_CHECKING:
 # pandas is only imported once a pandas converter is actually used: the
 # registry keys are forward references, resolved once `pandas` has been
 # imported by the caller -- see `Converter.register`.
-if tx.TYPE_CHECKING or _has_module("pandas"):
+if tx.TYPE_CHECKING or has_module("pandas"):
 
     class ToDataFrame(
         Converter[tx.Any, tx.Any],
@@ -35,7 +36,7 @@ if tx.TYPE_CHECKING or _has_module("pandas"):
             [`pandas.DataFrame`][] constructor.
         """
 
-        DEFAULT = _lazy("pandas.DataFrame")
+        DEFAULT = lazy_import("pandas.DataFrame")
 
         def like(self, __reentrant: tuple = ()) -> tx.Any:
             """A frame, a mapping of columns, or an iterable of rows."""
@@ -55,7 +56,7 @@ if tx.TYPE_CHECKING or _has_module("pandas"):
         the [`pandas.Series`][] constructor.
         """
 
-        DEFAULT = _lazy("pandas.Series")
+        DEFAULT = lazy_import("pandas.Series")
 
         def like(self, __reentrant: tuple = ()) -> tx.Any:
             """A series, an iterable of values, or a mapping."""

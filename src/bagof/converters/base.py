@@ -9,13 +9,6 @@ __all__ = [
     "wrap_converter",
 ]
 
-# stdlib
-import importlib
-import importlib.util
-import sys
-import types
-import typing
-
 # dependencies
 import typing_extensions as tx  # noqa: I001
 
@@ -30,6 +23,7 @@ from bagof.core.magic import (
 from bagof.hints.typevars.co import T
 
 # locals
+from . import _lazy
 from .exceptions import (
     ConversionError,
     TypeConversionError,
@@ -52,96 +46,6 @@ TO = tx.TypeVar("TO")
 # constants
 CONVERTERS: ConverterRegistry = {}
 """The global registry of converters."""
-
-_FORWARD_REFS = tuple({typing.ForwardRef, tx.ForwardRef})
-"""The forward-reference types that make a lazy registry key."""
-
-_PENDING: tx.List[tx.Tuple[ConverterRegistry, str, tx.Type["Converter"]]] = []
-"""
-Registrations keyed by a forward reference whose target has not been
-imported yet, as `(registry, "dotted.name", converter)`. They are moved
-into their registry -- keyed by the real object -- once its module is in
-[`sys.modules`][]. A hint or value of a type from a module that was never
-imported cannot reach the registry, so nothing is lost by waiting.
-"""
-
-
-def _has_module(name: str) -> bool:
-    """Whether a module can be imported, without importing it."""
-    try:
-        return importlib.util.find_spec(name) is not None
-    except (ImportError, ValueError):  # pragma: no cover
-        return False
-
-
-def _import_name(name: str) -> tx.Any:
-    """Import the object named by a fully-qualified dotted name."""
-    first, *rest = name.split(".")
-    obj = importlib.import_module(first)
-    for attr in rest:
-        try:
-            obj = getattr(obj, attr)
-        except AttributeError:
-            # A submodule that has not been imported yet.
-            obj = importlib.import_module(f"{obj.__name__}.{attr}")
-    return obj
-
-
-def _find_name(name: str) -> tx.Any:
-    """
-    The object named by a fully-qualified dotted name, if it is already
-    imported, or `UNSET`. Never imports anything.
-    """
-    parts = name.split(".")
-    for i in range(len(parts), 0, -1):
-        obj = sys.modules.get(".".join(parts[:i]))
-        if obj is not None:
-            break
-    else:
-        return UNSET
-    for attr in parts[i:]:
-        if isinstance(obj, types.ModuleType):
-            # Read the module dict directly: a module-level `__getattr__`
-            # (PEP 562) may import on access.
-            obj = vars(obj).get(attr, UNSET)
-        else:
-            obj = getattr(obj, attr, UNSET)
-        if obj is UNSET:
-            # Not imported yet, or still initialising.
-            return UNSET
-    return obj
-
-
-class _lazy:
-    """
-    Class attribute holding an object that is only imported on first access,
-    so that defining a converter for an optional library does not import it.
-
-    !!! example
-        ```python
-        class ToDaskArray(ArrayConverter):
-            DEFAULT = _lazy("dask.array.Array")
-        ```
-    """
-
-    def __init__(self, name: str) -> None:
-        self.name = name
-
-    def __get__(self, obj: tx.Any, owner: tx.Any = None) -> tx.Any:
-        if "value" not in self.__dict__:
-            self.value = _import_name(self.name)
-        return self.value
-
-
-def _resolve_pending() -> None:
-    """Register the pending forward-reference keys that are now imported."""
-    for entry in list(_PENDING):
-        registry, name, cls = entry
-        obj = _find_name(name)
-        if obj is UNSET:
-            continue
-        _PENDING.remove(entry)
-        registry[obj] = cls
 
 
 class ConverterMetaclass(type(MagicHint)):
@@ -315,11 +219,15 @@ class Converter(
         *hints
             One or more type hints to register the converter class for.
 
-            A [`ForwardRef`][typing.ForwardRef] key holds the
-            fully-qualified dotted name of an object, e.g.
-            `ForwardRef("dask.array.Array")`, and registers that object
-            lazily: nothing is imported, and the key is resolved once
-            its module has been imported (by anyone else).
+            A [`ForwardRef`][typing.ForwardRef] key registers the object
+            it names lazily: nothing is imported, and the key is resolved
+            once that object has been imported by someone else. The name
+            is looked up first relative to the registering class's module
+            (or the ref's `module=`), then as an absolute dotted path.
+            Names imported only under `if TYPE_CHECKING:` do not exist at
+            runtime, so use the real dotted path --
+            `ForwardRef("dask.array.Array")`, not an alias such as
+            `"da.Array"` -- or `ForwardRef("Array", module="dask.array")`.
         registry : ConverterRegistry
             The registry to register the converter class in.
             Defaults to the global registry.
@@ -330,22 +238,15 @@ class Converter(
 
         def decorator(cls: tx.Type[Converter]) -> tx.Type[Converter]:
             hints_ = hints or (cls.DEFAULT,)
-            # Settle the resolvable name keys first, so that the later
+            # Settle the resolvable lazy keys first, so that the later
             # registration still wins, whichever kind of key each one is.
-            _resolve_pending()
+            _lazy.resolve_pending()
             for hint in hints_:
-                if isinstance(hint, _FORWARD_REFS):
-                    # Compare names: `ForwardRef` equality also involves
-                    # fields that vary across Python versions.
-                    name = hint.__forward_arg__
-                    _PENDING[:] = [
-                        entry for entry in _PENDING
-                        if entry[0] is not registry or entry[1] != name
-                    ]
-                    _PENDING.append((registry, name, cls))
+                if _lazy.is_forward_ref(hint):
+                    _lazy.defer(registry, hint, cls, cls.__module__)
                 else:
                     registry[hint] = cls
-            _resolve_pending()
+            _lazy.resolve_pending()
             return cls
 
         return decorator
@@ -422,8 +323,7 @@ class Converter(
         """
         if fallback is UNSET:
             fallback = Converter
-        if _PENDING:
-            _resolve_pending()
+        _lazy.resolve_pending()
         return get_from_registry(hint, registry) or fallback
 
 

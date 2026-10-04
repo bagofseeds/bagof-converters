@@ -64,7 +64,7 @@ class ArrayConverter(Converter[tx.Any, tx.Any]):
 
     A subclass sets the class attributes below; it does not override
     ``__call__``. An optional library's namespaces may be given lazily
-    (see ``base._lazy``) so the class body never imports it.
+    (see ``_lazy.lazy_import``) so the class body never imports it.
 
     !!! note
         The concrete converters (``ToNDArray``, ``ToDaskArray``,
