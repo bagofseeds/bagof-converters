@@ -16,14 +16,16 @@ import typing_extensions as tx  # noqa: I001
 from bagof.core.magic import (
     UNSET,
     MagicHint,
+    defer,
     get_from_registry,
+    is_forward_ref,
+    resolve_pending,
     safe_isinstance,
     safe_issubclass,
 )
 from bagof.hints.typevars.co import T
 
 # locals
-from . import _lazy
 from .exceptions import (
     ConversionError,
     TypeConversionError,
@@ -240,13 +242,12 @@ class Converter(
             hints_ = hints or (cls.DEFAULT,)
             # Settle the resolvable lazy keys first, so that the later
             # registration still wins, whichever kind of key each one is.
-            _lazy.resolve_pending()
+            resolve_pending()
             for hint in hints_:
-                if _lazy.is_forward_ref(hint):
-                    _lazy.defer(registry, hint, cls, cls.__module__)
+                if is_forward_ref(hint):
+                    defer(registry, hint, cls, cls.__module__)
                 else:
                     registry[hint] = cls
-            _lazy.resolve_pending()
             return cls
 
         return decorator
@@ -323,7 +324,6 @@ class Converter(
         """
         if fallback is UNSET:
             fallback = Converter
-        _lazy.resolve_pending()
         return get_from_registry(hint, registry) or fallback
 
 

@@ -5,9 +5,11 @@ __all__: list = []
 # dependencies
 import typing_extensions as tx
 
+# bags
+from bagof.core.magic import has_module, lazy_import
+
 # locals
 from ._arrays import ArrayConverter
-from ._lazy import has_module, lazy_import
 
 if tx.TYPE_CHECKING:
     # Import the bare module so mkdocstrings resolves the `dask.array.*`
