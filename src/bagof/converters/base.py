@@ -9,6 +9,12 @@ __all__ = [
     "wrap_converter",
 ]
 
+# stdlib
+import importlib
+import importlib.util
+import re
+import sys
+
 # dependencies
 import typing_extensions as tx  # noqa: I001
 
@@ -45,6 +51,74 @@ TO = tx.TypeVar("TO")
 # constants
 CONVERTERS: ConverterRegistry = {}
 """The global registry of converters."""
+
+_NAME_KEY = re.compile(r"^[\w.]+:[\w.]+$")
+"""Pattern of a lazy, qualified-name registry key (`"module:qualname"`)."""
+
+_PENDING: tx.List[tx.Tuple[ConverterRegistry, str, tx.Type["Converter"]]] = []
+"""
+Name-keyed registrations whose module has not been imported yet, as
+`(registry, "module:qualname", converter)`. They are moved into their
+registry -- keyed by the real object -- once the module is in
+[`sys.modules`][]. A hint or value of a type from a module that was never
+imported cannot reach the registry, so nothing is lost by waiting.
+"""
+
+
+def _has_module(name: str) -> bool:
+    """Whether a module can be imported, without importing it."""
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):  # pragma: no cover
+        return False
+
+
+def _import_name(key: str) -> tx.Any:
+    """Import the object named by `"module"` or `"module:qualname"`."""
+    module, _, qualname = key.partition(":")
+    obj = importlib.import_module(module)
+    for attr in filter(None, qualname.split(".")):
+        obj = getattr(obj, attr)
+    return obj
+
+
+class _lazy:
+    """
+    Class attribute holding an object that is only imported on first access,
+    so that defining a converter for an optional library does not import it.
+
+    !!! example
+        ```python
+        class ToDaskArray(ArrayConverter):
+            DEFAULT = _lazy("dask.array:Array")
+        ```
+    """
+
+    def __init__(self, key: str) -> None:
+        self.key = key
+
+    def __get__(self, obj: tx.Any, owner: tx.Any = None) -> tx.Any:
+        if "value" not in self.__dict__:
+            self.value = _import_name(self.key)
+        return self.value
+
+
+def _resolve_pending() -> None:
+    """Register the pending name keys whose module is now imported."""
+    for entry in list(_PENDING):
+        registry, key, cls = entry
+        module, _, qualname = key.partition(":")
+        obj = sys.modules.get(module)
+        if obj is None:
+            continue
+        try:
+            for attr in qualname.split("."):
+                obj = getattr(obj, attr)
+        except AttributeError:
+            # Still initialising (or no such name): try again next time.
+            continue
+        _PENDING.remove(entry)
+        registry[obj] = cls
 
 
 class ConverterMetaclass(type(MagicHint)):
@@ -217,6 +291,9 @@ class Converter(
         ----------
         *hints
             One or more type hints to register the converter class for.
+            A string `"module:qualname"` (e.g. `"dask.array:Array"`)
+            registers the object of that name lazily, without importing
+            `module`: the key is resolved once `module` has been imported.
         registry : ConverterRegistry
             The registry to register the converter class in.
             Defaults to the global registry.
@@ -227,8 +304,19 @@ class Converter(
 
         def decorator(cls: tx.Type[Converter]) -> tx.Type[Converter]:
             hints_ = hints or (cls.DEFAULT,)
+            # Settle the resolvable name keys first, so that the later
+            # registration still wins, whichever kind of key each one is.
+            _resolve_pending()
             for hint in hints_:
-                registry[hint] = cls
+                if isinstance(hint, str) and _NAME_KEY.match(hint):
+                    _PENDING[:] = [
+                        entry for entry in _PENDING
+                        if entry[0] is not registry or entry[1] != hint
+                    ]
+                    _PENDING.append((registry, hint, cls))
+                else:
+                    registry[hint] = cls
+            _resolve_pending()
             return cls
 
         return decorator
@@ -305,6 +393,8 @@ class Converter(
         """
         if fallback is UNSET:
             fallback = Converter
+        if _PENDING:
+            _resolve_pending()
         return get_from_registry(hint, registry) or fallback
 
 
