@@ -603,3 +603,84 @@ def test_union_whose_branches_all_accept_anything_reports_any() -> None:
     # `Union[Any, object]` survives as a union, and both branches accept
     # anything -- the result must stay `Any` rather than collapse to one.
     assert common._like_union(tx.Union[tx.Any, object]) is tx.Any
+
+
+# ----------------------------------------------------------------------
+# Union refinement
+# ----------------------------------------------------------------------
+
+
+class _StrE(str, enum.Enum):
+    A = "a"
+
+
+class _IntE(enum.IntEnum):
+    A = 1
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="(str, Enum) dispatches to ToString (str precedes Enum in the "
+    "MRO), which does not refine",
+)
+@pytest.mark.parametrize(
+    "hint", [tx.Union[_StrE, str], tx.Union[str, _StrE]]
+)
+def test_union_refines_str_to_str_enum(hint: tx.Any) -> None:
+    convert = Converter.get(hint)
+    assert convert("a") is _StrE.A
+    assert convert(_StrE.A) is _StrE.A
+    result = convert("zzz")
+    assert result == "zzz" and type(result) is str
+
+
+@pytest.mark.parametrize(
+    "hint", [tx.Union[_IntE, int], tx.Union[int, _IntE]]
+)
+def test_union_refines_int_to_int_enum(hint: tx.Any) -> None:
+    convert = Converter.get(hint)
+    assert convert(1) is _IntE.A
+    assert convert(_IntE.A) is _IntE.A
+    result = convert(7)
+    assert result == 7 and type(result) is int
+
+
+@pytest.mark.parametrize("hint", [tx.Union[bool, int], tx.Union[int, bool]])
+def test_union_bool_does_not_refine_int(hint: tx.Any) -> None:
+    result = Converter.get(hint)(1)
+    assert result == 1 and type(result) is int
+
+
+@pytest.mark.parametrize("enum_cls,value", [(_StrE, "a"), (_IntE, 1)])
+def test_optional_enum_keeps_none(enum_cls: tx.Any, value: tx.Any) -> None:
+    convert = Converter.get(tx.Optional[enum_cls])
+    assert convert(None) is None
+    assert convert(value) is enum_cls(value)
+
+
+def test_refines_flag_is_declared_and_inherited() -> None:
+    class _Narrow(int):
+        pass
+
+    class _ToNarrow(Converter[_Narrow, tx.Any], refines=True):
+        DEFAULT = _Narrow
+
+        def __call__(self, value: tx.Any) -> _Narrow:
+            return _Narrow(value)
+
+    class _ToNarrowChild(_ToNarrow):
+        pass
+
+    class _ToNarrowOff(_ToNarrow, refines=False):
+        pass
+
+    assert Converter.REFINES is False
+    assert _ToNarrow.REFINES is True
+    assert _ToNarrowChild.REFINES is True
+    assert _ToNarrowOff.REFINES is False
+    assert common.ToUnion.REFINES is False
+    assert common.ToLiteral.REFINES is True
+
+    registry: tx.Any = {}
+    Converter.register(_ToNarrow, _Narrow, registry=registry)
+    assert Converter.get_class(_Narrow, registry) is _ToNarrow

@@ -110,8 +110,27 @@ class ToUnion(Converter[TO, FROM], register=(tx.Union, UnionType)):
     Converter for [`Union`][typing.Union].
 
     A value that already matches one of the branches is returned
-    unchanged. Otherwise the branches are tried in order, and the first
-    that converts wins.
+    unchanged -- unless a *narrower* branch (a sub hint of a matched
+    branch) has a refining converter (`refines=True`, e.g. enums and
+    literals), in which case that branch is tried first, in union order,
+    and its result is returned if it converts. Otherwise the branches
+    are tried in order, and the first that converts wins.
+
+    !!! example "Refinement"
+        ```pycon
+        >>> import enum
+        >>> from typing import Union
+        >>> from bagof.converters import get_converter
+        >>> class Level(enum.IntEnum):
+        ...     LOW = 1
+        >>> convert = get_converter(Union[Level, int])
+        >>> convert(1)          # an int, but refined to the enum member
+        <Level.LOW: 1>
+        >>> convert(7)          # not a member: kept as an int
+        7
+        >>> get_converter(Union[bool, int])(1)  # bool does not refine
+        1
+        ```
 
     !!! example
         ```pycon
@@ -212,9 +231,27 @@ def _to_union(
     # `None` is the special case this generalises: it was already
     # short-circuited here, because no amount of branch order should turn
     # `None` into something else.
-    for arg in args:
-        if ishintstance(value, arg):
-            return value
+    #
+    # The one exception is a narrower branch whose converter *refines*
+    # (`Converter.REFINES`, e.g. enums): `Union[MyIntEnum, int](1)`
+    # should give `MyIntEnum(1)`, not `1`. Only opted-in converters are
+    # tried -- `bool` is a sub hint of `int`, but `Union[bool, int](1)`
+    # must stay `1`. The class is checked before any converter is built,
+    # so plain unions pay nothing extra.
+    matched = [arg for arg in args if ishintstance(value, arg)]
+    if matched:
+        for arg in args:
+            if arg in matched:
+                continue
+            if not Converter.get_class(arg).REFINES:
+                continue
+            if not any(issubhint(arg, m) for m in matched):
+                continue
+            try:
+                return Converter.get(arg)(value)
+            except ConversionError:
+                continue
+        return value
 
     errors = []
     for arg in args:
@@ -236,7 +273,9 @@ def _to_union(
 # --- Literal ----------------------------------------------------------
 
 
-class ToLiteral(Converter[TO, FROM], register=tx.Literal):
+class ToLiteral(
+    Converter[TO, FROM], register=tx.Literal, refines=True
+):
     """Converter for [`Literal`][typing.Literal]."""
 
     BOUND = DEFAULT = tx.Literal

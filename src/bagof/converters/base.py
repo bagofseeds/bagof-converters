@@ -58,7 +58,10 @@ class ConverterMetaclass(type(MagicHint)):
         **kwargs: tx.Any,
     ) -> tx.Self:
         register = kwargs.pop("register", UNSET)
+        refines = kwargs.pop("refines", UNSET)
         cls = super().__new__(metacls, name, bases, namespace, **kwargs)
+        if refines is not UNSET:
+            cls.REFINES = bool(refines)
         if register is not UNSET:
             if register is True:
                 register = (cls.DEFAULT,)
@@ -83,9 +86,31 @@ class Converter(
         and [`TypeConversionError`][] (also a [`TypeError`][]) -- inherit
         the matching builtin, so callers that already catch `ValueError`
         or `TypeError` still catch conversion failures.
+
+    !!! note "Refining converters"
+        A converter class may declare `refines=True` as a class keyword
+        argument (stored as `REFINES`, and inherited by subclasses unless
+        overridden):
+
+        ```python
+        class ToEnum(Converter[T, Any], register=enum.Enum, refines=True):
+            ...
+        ```
+
+        It means the converter turns a value that is already an instance
+        of a *wider* union branch into its own, narrower type -- e.g. an
+        enum converter turns `1` into `MyIntEnum(1)`. [`ToUnion`][] only
+        tries such converters on values that already match another
+        branch; see its docstring.
     """
 
     DEFAULT = tx.Any
+
+    REFINES: tx.ClassVar[bool] = False
+    """
+    Whether this converter refines values of a wider union branch.
+    Set with the `refines=` class keyword argument.
+    """
 
     def __init__(self, hint: tx.Any = UNSET, compose: bool = False) -> None:
         """
