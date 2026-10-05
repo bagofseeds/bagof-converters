@@ -82,3 +82,74 @@ def test_enum_is_registered(cls: tx.Any) -> None:
 def test_int_enum_accepts_bool_by_value() -> None:
     # ``True == 1`` so it resolves to the value-1 member.
     assert Converter.get(Size)(True) is Size.SMALL
+
+
+# --- dispatch over mixed-in bases (``refines=True``) ------------------
+
+
+class StrTag(str, enum.Enum):
+    A = "a"
+    B = "b"
+
+
+def test_str_enum_dispatches_to_to_enum() -> None:
+    assert Converter.get_class(StrTag) is enums.ToEnum
+    assert Converter.get(StrTag)("a") is StrTag.A
+    # name lookup is the ToEnum behaviour that ToString lacked
+    assert Converter.get(StrTag)("A") is StrTag.A
+
+
+@pytest.mark.skipif(
+    not hasattr(enum, "StrEnum"), reason="enum.StrEnum needs Python 3.11+"
+)
+def test_stdlib_str_enum_dispatches_to_to_enum() -> None:
+    class S(enum.StrEnum):  # type: ignore[name-defined,misc]
+        A = "a"
+
+    assert Converter.get_class(S) is enums.ToEnum
+    assert Converter.get(S)("A") is S.A
+
+
+class _Custom(Converter[tx.Any, tx.Any]):
+    pass
+
+
+def _registry() -> tx.Any:
+    registry: tx.Any = {str: _Custom, int: _Custom, enum.Enum: enums.ToEnum}
+    return registry
+
+
+def test_exact_key_beats_refining_base() -> None:
+    registry = _registry()
+    registry[StrTag] = _Custom
+    assert Converter.get_class(StrTag, registry) is _Custom
+
+
+def test_nearer_subclass_of_refining_base_wins() -> None:
+    class MyBase(enum.Enum):
+        pass
+
+    class Sub(str, MyBase):
+        A = "a"
+
+    registry = _registry()
+    registry[MyBase] = _Custom  # non-refining, but more specific than Enum
+    assert Converter.get_class(Sub, registry) is _Custom
+
+
+def test_nearer_unrelated_base_loses_to_refining_base() -> None:
+    assert Converter.get_class(StrTag, _registry()) is enums.ToEnum
+
+
+def test_dispatch_unchanged_without_refining_base() -> None:
+    from bagof.converters import get_converter_class
+
+    assert get_converter_class(bool) is not enums.ToEnum
+    assert Converter.get_class(bool, _registry()) is _Custom
+    assert Converter.get_class(str, _registry()) is _Custom
+
+    class Plain:
+        pass
+
+    assert Converter.get_class(Plain, _registry(), fallback=None) is None
+    assert Converter.get_class(Plain) is Converter
