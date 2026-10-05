@@ -15,7 +15,7 @@ from bagof.hints.typevars.co import T
 from .base import Converter
 
 
-class ToEnum(Converter[T, tx.Any], register=enum.Enum):
+class ToEnum(Converter[T, tx.Any], register=enum.Enum, refines=True):
     """
     Converter for [`Enum`][enum.Enum] (and its subclasses).
 

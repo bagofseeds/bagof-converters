@@ -110,8 +110,27 @@ class ToUnion(Converter[TO, FROM], register=(tx.Union, UnionType)):
     Converter for [`Union`][typing.Union].
 
     A value that already matches one of the branches is returned
-    unchanged. Otherwise the branches are tried in order, and the first
-    that converts wins.
+    unchanged -- unless a *narrower* branch (a sub hint of a matched
+    branch) has a refining converter (`refines=True`, e.g. enums and
+    literals), in which case that branch is tried first, in union order,
+    and its result is returned if it converts. Otherwise the branches
+    are tried in order, and the first that converts wins.
+
+    !!! example "Refinement"
+        ```pycon
+        >>> import enum
+        >>> from typing import Union
+        >>> from bagof.converters import get_converter
+        >>> class Mode(str, enum.Enum):
+        ...     A = "a"
+        >>> convert = get_converter(Union[Mode, str])
+        >>> convert("a")        # a str, but refined to the enum member
+        <Mode.A: 'a'>
+        >>> convert("zzz")      # not a member: kept as a str
+        'zzz'
+        >>> get_converter(Union[bool, int])(1)  # bool does not refine
+        1
+        ```
 
     !!! example
         ```pycon
@@ -134,6 +153,7 @@ class ToUnion(Converter[TO, FROM], register=(tx.Union, UnionType)):
             raise TypeError(
                 f"Hint cannot be an empty or general union: {self.hint}"
             )
+        self._refiners = _union_refiners(self.unwrapped)
 
     def like(self, __reentrant: tuple = ()) -> tx.Any:
         """Return the union of the `like` hints for each union branch."""
@@ -146,7 +166,10 @@ class ToUnion(Converter[TO, FROM], register=(tx.Union, UnionType)):
         # `repr(value)` (which is expensive for e.g. numpy arrays) on every
         # call. `_to_union` calls this only when every branch has failed.
         return _to_union(
-            value, self.unwrapped, lambda: self._notinunion_error(value)
+            value,
+            self.unwrapped,
+            lambda: self._notinunion_error(value),
+            self._refiners,
         )
 
     def _notinunion_error(self, value: tx.Any) -> TypeConversionError:
@@ -196,12 +219,41 @@ def _like_union(hint: tx.Any, __reentrant: tuple = ()) -> tx.Any:
     return tx.Union[tuple(filtered_args)] if filtered_args else tx.Never
 
 
+_Refiners = tx.Tuple[tx.Tuple[tx.Any, Converter, tx.Tuple[tx.Any, ...]], ...]
+
+
+def _union_refiners(hint: tx.Any) -> _Refiners:
+    """
+    Return the refining branches of a union, in union order.
+
+    Each entry is `(branch, converter, refined)`: a branch whose converter
+    class has `REFINES` set, its converter, and the other branches it is a
+    sub hint of (the ones whose values it may refine). Branches that
+    refine nothing are left out.
+    """
+    args = get_args_uw(hint)
+    refiners = []
+    for arg in args:
+        if not Converter.get_class(arg).REFINES:
+            continue
+        refined = tuple(
+            other for other in args
+            if other is not arg and issubhint(arg, other)
+        )
+        if refined:
+            refiners.append((arg, Converter.get(arg), refined))
+    return tuple(refiners)
+
+
 def _to_union(
     value: tx.Any,
     hint: tx.Any,
     type_error: tx.Callable[[], TypeConversionError],
+    refiners: tx.Optional[_Refiners] = None,
 ) -> tx.Any:
     args = get_args_uw(hint)
+    if refiners is None:
+        refiners = _union_refiners(hint)
 
     # A value that already satisfies one of the branches is returned
     # unchanged. Without this pass the result depends on how the union was
@@ -212,9 +264,25 @@ def _to_union(
     # `None` is the special case this generalises: it was already
     # short-circuited here, because no amount of branch order should turn
     # `None` into something else.
-    for arg in args:
-        if ishintstance(value, arg):
-            return value
+    #
+    # The one exception is a narrower branch whose converter *refines*
+    # (`Converter.REFINES`, e.g. enums): `Union[MyStrEnum, str]("a")`
+    # should give `MyStrEnum.A`, not `"a"`. Only opted-in converters are
+    # tried -- `bool` is a sub hint of `int`, but `Union[bool, int](1)`
+    # must stay `1`. The refining branches are worked out once per union
+    # (`_union_refiners`), so a union without any keeps the plain
+    # return-at-first-match fast path.
+    if any(ishintstance(value, arg) for arg in args):
+        for arg, converter, refined in refiners:
+            if ishintstance(value, arg):
+                continue
+            if not any(ishintstance(value, m) for m in refined):
+                continue
+            try:
+                return converter(value)
+            except ConversionError:
+                continue
+        return value
 
     errors = []
     for arg in args:
@@ -236,7 +304,9 @@ def _to_union(
 # --- Literal ----------------------------------------------------------
 
 
-class ToLiteral(Converter[TO, FROM], register=tx.Literal):
+class ToLiteral(
+    Converter[TO, FROM], register=tx.Literal, refines=True
+):
     """Converter for [`Literal`][typing.Literal]."""
 
     BOUND = DEFAULT = tx.Literal
