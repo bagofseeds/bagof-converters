@@ -31,9 +31,9 @@ if tx.TYPE_CHECKING or has_module("cupy"):  # pragma: no cover
     ):
         """Converter for [`cupy.ndarray`][]."""
 
-        DEFAULT = lazy_import("cupy.ndarray")
+        DEFAULT = lazy_import("cupy:ndarray")
         ARRAY = SCALARS = lazy_import("cupy")
-        ARRAY_TYPE = lazy_import("cupy.ndarray")
-        HINT_TYPE = lazy_import("bagof.hints.cupy.ndarray")
+        ARRAY_TYPE = lazy_import("cupy:ndarray")
+        HINT_TYPE = lazy_import("bagof.hints.cupy:ndarray")
 
     __all__ += ["ToCupyArray"]

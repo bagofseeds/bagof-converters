@@ -36,7 +36,7 @@ if tx.TYPE_CHECKING or has_module("pandas"):
             [`pandas.DataFrame`][] constructor.
         """
 
-        DEFAULT = lazy_import("pandas.DataFrame")
+        DEFAULT = lazy_import("pandas:DataFrame")
 
         def like(self, __reentrant: tuple = ()) -> tx.Any:
             """A frame, a mapping of columns, or an iterable of rows."""
@@ -56,7 +56,7 @@ if tx.TYPE_CHECKING or has_module("pandas"):
         the [`pandas.Series`][] constructor.
         """
 
-        DEFAULT = lazy_import("pandas.Series")
+        DEFAULT = lazy_import("pandas:Series")
 
         def like(self, __reentrant: tuple = ()) -> tx.Any:
             """A series, an iterable of values, or a mapping."""

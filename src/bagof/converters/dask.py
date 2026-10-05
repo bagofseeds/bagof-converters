@@ -29,12 +29,12 @@ if tx.TYPE_CHECKING or has_module("dask"):
     ):
         """Converter for [`dask.array.Array`][]."""
 
-        DEFAULT = lazy_import("dask.array.Array")
+        DEFAULT = lazy_import("dask.array:Array")
         ARRAY = lazy_import("dask.array")
         # dask arrays carry numpy dtypes, so the scalar tables come from numpy.
         SCALARS = lazy_import("numpy")
-        ARRAY_TYPE = lazy_import("dask.array.Array")
-        HINT_TYPE = lazy_import("bagof.hints.dask.Array")
+        ARRAY_TYPE = lazy_import("dask.array:Array")
+        HINT_TYPE = lazy_import("bagof.hints.dask:Array")
         # dask has no ``Array.view(cls)``; a subclass is built via its
         # constructor instead.
         CAN_VIEW = False

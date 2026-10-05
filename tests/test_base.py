@@ -105,9 +105,10 @@ def _restore_pending() -> tx.Iterator[None]:
     """Drop the pending entries a test leaves behind."""
     from bagof.converters import _lazy
 
-    saved = list(_lazy._PENDING)
+    pending = list(_lazy._PENDING)
     yield
-    _lazy._PENDING[:] = saved
+    _lazy._PENDING[:] = pending
+    _lazy._DIRTY = True
 
 
 def _fake_module(name: str, monkeypatch: tx.Any) -> tx.Any:
@@ -353,3 +354,30 @@ def test_forward_ref_key_relative_miss_falls_back_to_absolute(
         ToLazy, tx.ForwardRef("_bagof_lazy_fb.Thing"), registry=registry
     )
     assert registry == {_Thing: ToLazy}
+
+
+def test_steady_get_class_does_not_rescan_pending_keys(
+    monkeypatch: tx.Any,
+) -> None:
+    """With keys pending for good, a lookup no longer retries them."""
+    from bagof.converters import _lazy
+
+    registry: tx.Dict[tx.Any, tx.Any] = {}
+
+    class ToLazy(Converter):
+        pass
+
+    Converter.register(
+        ToLazy, tx.ForwardRef("_bagof_never_imported.Thing"),
+        registry=registry,
+    )
+    Converter.get_class(int)  # settles anything else that was pending
+    calls: tx.List[str] = []
+    find = _lazy._find
+    monkeypatch.setattr(
+        _lazy, "_find", lambda n, c: calls.append(n) or find(n, c)
+    )
+    for _ in range(3):
+        Converter.get_class(int)
+        Converter.get_class(tx.List[int])
+    assert calls == []
