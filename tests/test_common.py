@@ -618,11 +618,6 @@ class _IntE(enum.IntEnum):
     A = 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="(str, Enum) dispatches to ToString (str precedes Enum in the "
-    "MRO), which does not refine",
-)
 @pytest.mark.parametrize(
     "hint", [tx.Union[_StrE, str], tx.Union[str, _StrE]]
 )
@@ -632,6 +627,20 @@ def test_union_refines_str_to_str_enum(hint: tx.Any) -> None:
     assert convert(_StrE.A) is _StrE.A
     result = convert("zzz")
     assert result == "zzz" and type(result) is str
+
+
+@pytest.mark.skipif(
+    not hasattr(enum, "StrEnum"), reason="enum.StrEnum needs Python 3.11+"
+)
+def test_union_refines_str_to_stdlib_str_enum() -> None:
+    class S(enum.StrEnum):  # type: ignore[name-defined,misc]
+        A = "a"
+
+    for hint in (tx.Union[S, str], tx.Union[str, S]):
+        convert = Converter.get(hint)
+        assert convert("a") is S.A
+        result = convert("zzz")
+        assert result == "zzz" and type(result) is str
 
 
 @pytest.mark.parametrize(

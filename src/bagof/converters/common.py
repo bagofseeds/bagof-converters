@@ -121,13 +121,13 @@ class ToUnion(Converter[TO, FROM], register=(tx.Union, UnionType)):
         >>> import enum
         >>> from typing import Union
         >>> from bagof.converters import get_converter
-        >>> class Level(enum.IntEnum):
-        ...     LOW = 1
-        >>> convert = get_converter(Union[Level, int])
-        >>> convert(1)          # an int, but refined to the enum member
-        <Level.LOW: 1>
-        >>> convert(7)          # not a member: kept as an int
-        7
+        >>> class Mode(str, enum.Enum):
+        ...     A = "a"
+        >>> convert = get_converter(Union[Mode, str])
+        >>> convert("a")        # a str, but refined to the enum member
+        <Mode.A: 'a'>
+        >>> convert("zzz")      # not a member: kept as a str
+        'zzz'
         >>> get_converter(Union[bool, int])(1)  # bool does not refine
         1
         ```
@@ -233,8 +233,8 @@ def _to_union(
     # `None` into something else.
     #
     # The one exception is a narrower branch whose converter *refines*
-    # (`Converter.REFINES`, e.g. enums): `Union[MyIntEnum, int](1)`
-    # should give `MyIntEnum(1)`, not `1`. Only opted-in converters are
+    # (`Converter.REFINES`, e.g. enums): `Union[MyStrEnum, str]("a")`
+    # should give `MyStrEnum.A`, not `"a"`. Only opted-in converters are
     # tried -- `bool` is a sub hint of `int`, but `Union[bool, int](1)`
     # must stay `1`. The class is checked before any converter is built,
     # so plain unions pay nothing extra.

@@ -97,11 +97,20 @@ class Converter(
             ...
         ```
 
-        It means the converter turns a value that is already an instance
-        of a *wider* union branch into its own, narrower type -- e.g. an
-        enum converter turns `1` into `MyIntEnum(1)`. [`ToUnion`][] only
-        tries such converters on values that already match another
-        branch; see its docstring.
+        It has two effects:
+
+        - **Union preference.** The converter turns a value that is
+          already an instance of a *wider* union branch into its own,
+          narrower type -- e.g. `Union[MyStrEnum, str]("a")` gives
+          `MyStrEnum.A`. [`ToUnion`][] only tries such converters on
+          values that already match another branch; see its docstring.
+        - **Dispatch over mixed-in bases.** For a class hint, the nearest
+          base registered with a refining converter wins over nearer
+          non-refining bases, so `class E(str, Enum)` dispatches to the
+          enum converter rather than the `str` one. An exact registry key
+          still wins, and so does a nearer registered base that is itself
+          a subclass of the refining one (e.g. a custom converter
+          registered for your own `Enum` base class, refining or not).
     """
 
     DEFAULT = tx.Any
@@ -330,7 +339,10 @@ class Converter(
         """
         if fallback is UNSET:
             fallback = Converter
-        return get_from_registry(hint, registry) or fallback
+        match = get_from_registry(hint, registry)
+        if isinstance(hint, type):
+            match = _prefer_refining(hint, registry, match)
+        return match or fallback
 
 
 register_converter = Converter.register
@@ -379,6 +391,37 @@ def wrap_converter(
         return converter(value)
 
     return convert
+
+
+def _prefer_refining(
+    hint: type, registry: ConverterRegistry, match: tx.Any
+) -> tx.Any:
+    """
+    Let a refining converter win dispatch over a nearer mixed-in base.
+
+    `class E(str, Enum)` has `str` before `Enum` in its MRO, so a plain
+    nearest-base lookup gives it the `str` converter. If a real base `K`
+    of `hint` is registered with a converter whose `REFINES` is true, the
+    nearest such `K` wins instead -- unless an even nearer registered base
+    is itself a subclass of `K` (it is more specific, so it still wins).
+    An exact key for `hint` always wins. `registry` is assumed resolved
+    (`get_from_registry` has just run).
+    """
+    if hint in registry:
+        return match
+    mro = hint.__mro__[1:]
+    refining = None
+    for i, base in enumerate(mro):
+        if getattr(registry.get(base), "REFINES", False):
+            refining = i
+            break
+    if refining is None:
+        return match
+    k = mro[refining]
+    for base in mro[: refining + 1]:
+        if base in registry and issubclass(base, k):
+            return registry[base]
+    return match  # pragma: no cover - unreachable, `k` matches itself
 
 
 def _process_reentrant(inp: tx.Any, reentrant: tuple = ()) -> tuple:
