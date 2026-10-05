@@ -6,23 +6,24 @@ __all__: list = []
 import typing_extensions as tx
 
 # locals
+from ._lazy import has_module, lazy_import
 from .base import Converter
 
 if tx.TYPE_CHECKING:
     # Import the bare module so mkdocstrings resolves the `pandas.*`
     # cross-references in the docstrings below. Type-checking only.
     import pandas  # noqa: F401
-    import pandas as pd
-else:
-    try:
-        import pandas as pd
-    except ImportError:  # pragma: no cover
-        pd = None
 
 
-if tx.TYPE_CHECKING or pd is not None:
+# pandas is only imported once a pandas converter is actually used: the
+# registry keys are forward references, resolved once `pandas` has been
+# imported by the caller -- see `Converter.register`.
+if tx.TYPE_CHECKING or has_module("pandas"):
 
-    class ToDataFrame(Converter[tx.Any, tx.Any], register=pd.DataFrame):
+    class ToDataFrame(
+        Converter[tx.Any, tx.Any],
+        register=tx.ForwardRef("pandas.DataFrame"),
+    ):
         """
         Converter for [`pandas.DataFrame`][].
 
@@ -35,13 +36,18 @@ if tx.TYPE_CHECKING or pd is not None:
             [`pandas.DataFrame`][] constructor.
         """
 
-        DEFAULT = pd.DataFrame
+        DEFAULT = lazy_import("pandas:DataFrame")
 
         def like(self, __reentrant: tuple = ()) -> tx.Any:
             """A frame, a mapping of columns, or an iterable of rows."""
+            import pandas as pd
+
             return tx.Union[pd.DataFrame, tx.Mapping, tx.Iterable]
 
-    class ToSeries(Converter[tx.Any, tx.Any], register=pd.Series):
+    class ToSeries(
+        Converter[tx.Any, tx.Any],
+        register=tx.ForwardRef("pandas.Series"),
+    ):
         """
         Converter for [`pandas.Series`][].
 
@@ -50,10 +56,12 @@ if tx.TYPE_CHECKING or pd is not None:
         the [`pandas.Series`][] constructor.
         """
 
-        DEFAULT = pd.Series
+        DEFAULT = lazy_import("pandas:Series")
 
         def like(self, __reentrant: tuple = ()) -> tx.Any:
             """A series, an iterable of values, or a mapping."""
+            import pandas as pd
+
             return tx.Union[pd.Series, tx.Iterable, tx.Mapping]
 
     __all__ += ["ToDataFrame", "ToSeries"]

@@ -23,6 +23,7 @@ from bagof.core.magic import (
 from bagof.hints.typevars.co import T
 
 # locals
+from . import _lazy
 from .exceptions import (
     ConversionError,
     TypeConversionError,
@@ -251,6 +252,16 @@ class Converter(
         ----------
         *hints
             One or more type hints to register the converter class for.
+
+            A [`ForwardRef`][typing.ForwardRef] key registers the object
+            it names lazily: nothing is imported, and the key is resolved
+            once that object has been imported by someone else. The name
+            is looked up first relative to the registering class's module
+            (or the ref's `module=`), then as an absolute dotted path.
+            Names imported only under `if TYPE_CHECKING:` do not exist at
+            runtime, so use the real dotted path --
+            `ForwardRef("dask.array.Array")`, not an alias such as
+            `"da.Array"` -- or `ForwardRef("Array", module="dask.array")`.
         registry : ConverterRegistry
             The registry to register the converter class in.
             Defaults to the global registry.
@@ -261,8 +272,15 @@ class Converter(
 
         def decorator(cls: tx.Type[Converter]) -> tx.Type[Converter]:
             hints_ = hints or (cls.DEFAULT,)
+            # Settle the resolvable lazy keys first, so that the later
+            # registration still wins, whichever kind of key each one is.
+            _lazy.resolve_pending()
             for hint in hints_:
-                registry[hint] = cls
+                if _lazy.is_forward_ref(hint):
+                    _lazy.defer(registry, hint, cls, cls.__module__)
+                else:
+                    registry[hint] = cls
+            _lazy.resolve_pending()
             return cls
 
         return decorator
@@ -339,6 +357,7 @@ class Converter(
         """
         if fallback is UNSET:
             fallback = Converter
+        _lazy.resolve_pending()
         match = get_from_registry(hint, registry)
         if isinstance(hint, type):
             match = _prefer_refining(hint, registry, match)
