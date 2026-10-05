@@ -693,3 +693,17 @@ def test_refines_flag_is_declared_and_inherited() -> None:
     registry: tx.Any = {}
     Converter.register(_ToNarrow, _Narrow, registry=registry)
     assert Converter.get_class(_Narrow, registry) is _ToNarrow
+
+
+def test_plain_union_fast_path_does_no_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    convert = Converter.get(tx.Union[int, str])
+
+    def boom(*args: tx.Any, **kwargs: tx.Any) -> tx.Any:
+        raise AssertionError("dispatch on the fast path")
+
+    monkeypatch.setattr(Converter, "get_class", boom)
+    monkeypatch.setattr(Converter, "get", boom)
+    assert convert("5") == "5"
+    assert convert(5) == 5
