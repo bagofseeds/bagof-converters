@@ -27,7 +27,7 @@ requires-python = ">=3.8"
 dependencies = [
     "typing_extensions >= 4.13",
     "bagof-hints ~= 0.1",
-    "bagof-core-magic ~= 0.1",
+    "bagof-core-magic ~= 0.2",
 ]
 
 [project.urls]
