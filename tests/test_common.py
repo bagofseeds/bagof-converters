@@ -725,15 +725,41 @@ def test_refines_flag_is_declared_and_inherited() -> None:
     assert Converter.get_class(_Narrow, registry) is _ToNarrow
 
 
-def test_plain_union_fast_path_does_no_dispatch(
+def test_union_runs_matching_branch_converter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     convert = Converter.get(tx.Union[int, str])
+    original = Converter.get
+    calls = []
 
-    def boom(*args: tx.Any, **kwargs: tx.Any) -> tx.Any:
-        raise AssertionError("dispatch on the fast path")
+    def tracked(hint: tx.Any) -> tx.Any:
+        calls.append(hint)
+        return original(hint)
 
-    monkeypatch.setattr(Converter, "get_class", boom)
-    monkeypatch.setattr(Converter, "get", boom)
+    monkeypatch.setattr(Converter, "get", tracked)
     assert convert("5") == "5"
-    assert convert(5) == 5
+    assert calls == [str]
+
+
+@pytest.mark.parametrize(
+    "hint",
+    [
+        tx.Union[tx.List[int], str],
+        tx.Union[str, tx.List[int]],
+        tx.Union[tx.List[int], str, None],
+    ],
+)
+def test_general_union_converts_container_elements(hint: tx.Any) -> None:
+    assert Converter.get(hint)(["1"]) == [1]
+
+
+def test_union_falls_back_after_matching_branch_conversion_fails() -> None:
+    convert = Converter.get(tx.Union[tx.List[int], tx.List[str]])
+    assert convert(["abc"]) == ["abc"]
+    assert convert(["1"]) == [1]
+    convert = Converter.get(tx.Union[tx.List[int], tx.Tuple[str, ...]])
+    assert convert(["abc"]) == ("abc",)
+
+
+def test_union_preserves_none_before_other_converters() -> None:
+    assert Converter.get(tx.Union[str, int, None])(None) is None
