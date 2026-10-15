@@ -473,6 +473,36 @@ def test_optional_short_circuits_none() -> None:
     assert Converter.get(tx.Optional[int])("5") == 5
 
 
+class _List(list):
+    """A concrete container subclass, as used by downstream models."""
+
+
+@pytest.mark.parametrize(
+    "hint,value,expected",
+    [
+        (tx.List[int], ["1"], [1]),
+        (tx.Tuple[int, ...], ("1",), (1,)),
+        (tx.List[tx.List[int]], [["1"]], [[1]]),
+        (tx.List[int], _List(["1"]), _List([1])),
+    ],
+)
+@pytest.mark.parametrize("none_first", [False, True])
+def test_optional_converts_container_elements(
+    hint: tx.Any, value: tx.Any, expected: tx.Any, none_first: bool
+) -> None:
+    optional = tx.Union[None, hint] if none_first else tx.Optional[hint]
+    convert = Converter.get(optional)
+    result = convert(value)
+    assert result == expected
+    assert type(result) is type(expected)
+    assert convert(None) is None
+
+
+def test_optional_rejects_invalid_container_elements() -> None:
+    with pytest.raises(ConversionError):
+        Converter.get(tx.Optional[tx.List[int]])(["invalid"])
+
+
 def test_union_docstring_example() -> None:
     convert = Converter.get(tx.Union[int, str])
     assert convert("5") == "5"

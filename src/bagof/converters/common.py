@@ -116,6 +116,10 @@ class ToUnion(Converter[TO, FROM], register=(tx.Union, UnionType)):
     and its result is returned if it converts. Otherwise the branches
     are tried in order, and the first that converts wins.
 
+    For `Optional[T]`, `None` is returned unchanged and every other
+    value is passed to the converter for `T`, including its element
+    converters when `T` is a container.
+
     !!! example "Refinement"
         ```pycon
         >>> import enum
@@ -252,6 +256,12 @@ def _to_union(
     refiners: tx.Optional[_Refiners] = None,
 ) -> tx.Any:
     args = get_args_uw(hint)
+    if len(args) == 2 and type(None) in args:
+        if value is None:
+            return None
+        inner = next(arg for arg in args if arg is not type(None))
+        return Converter.get(inner)(value)
+
     if refiners is None:
         refiners = _union_refiners(hint)
 
