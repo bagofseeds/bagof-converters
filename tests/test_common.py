@@ -473,6 +473,36 @@ def test_optional_short_circuits_none() -> None:
     assert Converter.get(tx.Optional[int])("5") == 5
 
 
+class _List(list):
+    """A concrete container subclass, as used by downstream models."""
+
+
+@pytest.mark.parametrize(
+    "hint,value,expected",
+    [
+        (tx.List[int], ["1"], [1]),
+        (tx.Tuple[int, ...], ("1",), (1,)),
+        (tx.List[tx.List[int]], [["1"]], [[1]]),
+        (tx.List[int], _List(["1"]), _List([1])),
+    ],
+)
+@pytest.mark.parametrize("none_first", [False, True])
+def test_optional_converts_container_elements(
+    hint: tx.Any, value: tx.Any, expected: tx.Any, none_first: bool
+) -> None:
+    optional = tx.Union[None, hint] if none_first else tx.Optional[hint]
+    convert = Converter.get(optional)
+    result = convert(value)
+    assert result == expected
+    assert type(result) is type(expected)
+    assert convert(None) is None
+
+
+def test_optional_rejects_invalid_container_elements() -> None:
+    with pytest.raises(ConversionError):
+        Converter.get(tx.Optional[tx.List[int]])(["invalid"])
+
+
 def test_union_docstring_example() -> None:
     convert = Converter.get(tx.Union[int, str])
     assert convert("5") == "5"
@@ -695,15 +725,41 @@ def test_refines_flag_is_declared_and_inherited() -> None:
     assert Converter.get_class(_Narrow, registry) is _ToNarrow
 
 
-def test_plain_union_fast_path_does_no_dispatch(
+def test_union_runs_matching_branch_converter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     convert = Converter.get(tx.Union[int, str])
+    original = Converter.get
+    calls = []
 
-    def boom(*args: tx.Any, **kwargs: tx.Any) -> tx.Any:
-        raise AssertionError("dispatch on the fast path")
+    def tracked(hint: tx.Any) -> tx.Any:
+        calls.append(hint)
+        return original(hint)
 
-    monkeypatch.setattr(Converter, "get_class", boom)
-    monkeypatch.setattr(Converter, "get", boom)
+    monkeypatch.setattr(Converter, "get", tracked)
     assert convert("5") == "5"
-    assert convert(5) == 5
+    assert calls == [str]
+
+
+@pytest.mark.parametrize(
+    "hint",
+    [
+        tx.Union[tx.List[int], str],
+        tx.Union[str, tx.List[int]],
+        tx.Union[tx.List[int], str, None],
+    ],
+)
+def test_general_union_converts_container_elements(hint: tx.Any) -> None:
+    assert Converter.get(hint)(["1"]) == [1]
+
+
+def test_union_falls_back_after_matching_branch_conversion_fails() -> None:
+    convert = Converter.get(tx.Union[tx.List[int], tx.List[str]])
+    assert convert(["abc"]) == ["abc"]
+    assert convert(["1"]) == [1]
+    convert = Converter.get(tx.Union[tx.List[int], tx.Tuple[str, ...]])
+    assert convert(["abc"]) == ("abc",)
+
+
+def test_union_preserves_none_before_other_converters() -> None:
+    assert Converter.get(tx.Union[str, int, None])(None) is None

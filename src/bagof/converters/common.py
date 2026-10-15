@@ -109,12 +109,14 @@ class ToUnion(Converter[TO, FROM], register=(tx.Union, UnionType)):
     """
     Converter for [`Union`][typing.Union].
 
-    A value that already matches one of the branches is returned
-    unchanged -- unless a *narrower* branch (a sub hint of a matched
-    branch) has a refining converter (`refines=True`, e.g. enums and
-    literals), in which case that branch is tried first, in union order,
-    and its result is returned if it converts. Otherwise the branches
-    are tried in order, and the first that converts wins.
+    `None` is preserved when the union contains a `None` branch.
+    Otherwise, converters for branches that already match the value
+    are tried before the remaining branches, in declaration order.
+    Matching a container's outer type still runs its element converters.
+
+    A *narrower* branch (a sub hint of a matched branch) with a refining
+    converter (`refines=True`, e.g. enums and literals) is tried before
+    matched branches. The first successful conversion wins.
 
     !!! example "Refinement"
         ```pycon
@@ -252,51 +254,31 @@ def _to_union(
     refiners: tx.Optional[_Refiners] = None,
 ) -> tx.Any:
     args = get_args_uw(hint)
+    if value is None and type(None) in args:
+        return None
     if refiners is None:
         refiners = _union_refiners(hint)
 
-    # A value that already satisfies one of the branches is returned
-    # unchanged. Without this pass the result depends on how the union was
-    # spelled -- `Union[int, str]("5")` gave `5` while `Union[str, int]
-    # ("5")` gave `"5"`, even though the two hints denote the same type --
-    # and a perfectly valid `str` came back coerced to an `int`.
-    #
-    # `None` is the special case this generalises: it was already
-    # short-circuited here, because no amount of branch order should turn
-    # `None` into something else.
-    #
-    # The one exception is a narrower branch whose converter *refines*
-    # (`Converter.REFINES`, e.g. enums): `Union[MyStrEnum, str]("a")`
-    # should give `MyStrEnum.A`, not `"a"`. Only opted-in converters are
-    # tried -- `bool` is a sub hint of `int`, but `Union[bool, int](1)`
-    # must stay `1`. The refining branches are worked out once per union
-    # (`_union_refiners`), so a union without any keeps the plain
-    # return-at-first-match fast path.
-    if any(ishintstance(value, arg) for arg in args):
-        for arg, converter, refined in refiners:
-            if ishintstance(value, arg):
-                continue
-            if not any(ishintstance(value, m) for m in refined):
-                continue
-            try:
-                return converter(value)
-            except ConversionError:
-                continue
-        return value
-
+    # A shallow match selects a converter, not a finished result:
+    # containers may still need their elements converted. Prefer matches
+    # so Union[int, str]("5") stays a string regardless of branch order.
+    matched = tuple(arg for arg in args if ishintstance(value, arg))
+    preferred = tuple(
+        arg for arg, _, refined in refiners
+        if arg not in matched and any(m in matched for m in refined)
+    )
+    ordered = preferred + matched + tuple(
+        arg for arg in args if arg not in preferred and arg not in matched
+    )
     errors = []
-    for arg in args:
+    for arg in ordered:
         converter = Converter.get(arg)
         try:
             return converter(value)
         except ConversionError as e:
-            # Only a conversion failure means "this branch did not match".
-            # Catching the builtins here as well swallowed genuine bugs in
-            # a converter's own code and reported them as "no branch
-            # matched"; a branch that raises a plain `TypeError` is a
-            # branch that is broken, and that should surface.
+            # A plain TypeError indicates a converter bug, not a failed
+            # conversion, and must propagate instead of trying a fallback.
             errors.append(e)
-            continue
 
     raise type_error() from MultipleCauses(errors)
 
