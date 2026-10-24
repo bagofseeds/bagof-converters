@@ -295,6 +295,11 @@ def _like_mapping(hint: tx.Any, __reentrant: tuple = ()) -> tx.Any:
     ]
 
 
+def _as_pair(item: tx.Any) -> tx.Tuple[tx.Any, tx.Any]:
+    key, val = item
+    return key, val
+
+
 def _to_mapping(
     value: tx.Any, hint: tx.Any, fallback: tx.Any, wrapper: tx.Callable
 ) -> tx.Any:
@@ -314,7 +319,11 @@ def _to_mapping(
         val_converter = wrapper(Converter.get(val_hint))
         if isinstance(value, abc.Mapping):
             value = value.items()
-        value = {key_converter(k): val_converter(v) for k, v in value}
+        # A value that is not an iterable of pairs is a failed conversion,
+        # not a bug: it must not escape as a bare TypeError, which would
+        # stop a union from trying its next branch.
+        pairs = map(wrapper(_as_pair), wrapper(iter)(value))
+        value = {key_converter(k): val_converter(v) for k, v in pairs}
 
     if not inspect.isabstract(input_type) and safe_issubclass(
         input_type, origin
