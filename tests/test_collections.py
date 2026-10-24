@@ -110,12 +110,22 @@ def test_mapping_valid(
         (tx.Mapping[str, int], {1: 1}),      # int key can't coerce to str
         (tx.Mapping[str, int], {"a": "x"}),  # "x" can't coerce to int
         (tx.Mapping[str, int], 1),            # not a mapping
+        (tx.Mapping[str, int], [1, 2]),       # items are not pairs
+        (tx.Mapping[str, int], [("a", 1, 2)]),  # item is not a pair
     ],
 )
 def test_mapping_invalid(hint: tx.Any, value: tx.Any) -> None:
     converter = collections.ToMapping(hint)
-    with pytest.raises((ConversionError, TypeError, ValueError)):
+    with pytest.raises(ConversionError):
         converter(value)
+
+
+def test_union_falls_through_a_failed_mapping_branch() -> None:
+    converter = Converter.get(tx.Union[tx.Dict[str, int], tx.List[int]])
+    assert converter([1, 2]) == [1, 2]
+    converter = Converter.get(tx.Union[tx.Dict[str, int], int])
+    with pytest.raises(ConversionError):
+        converter([1, 2])
 
 
 # --- ToTuple ----------------------------------------------------------
