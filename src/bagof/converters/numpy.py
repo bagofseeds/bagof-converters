@@ -4,7 +4,7 @@ __all__: list = []
 import typing_extensions as tx
 
 # locals
-from ._arrays import ArrayConverter
+from ._arrays import ArrayConverter, to_host
 from .base import Converter
 
 if tx.TYPE_CHECKING:
@@ -57,11 +57,20 @@ if tx.TYPE_CHECKING or dtype is not None:
                 ) from e
 
     class ToNDArray(ArrayConverter, register=(np.ndarray, _hint_ndarray)):
-        """Converter for [`numpy.ndarray`][]."""
+        """
+        Converter for [`numpy.ndarray`][].
+
+        A lazy (dask) array is computed, and a device (cupy) array is
+        copied to the host, so that an array of any library converts.
+        """
 
         DEFAULT = np.ndarray
         ARRAY = SCALARS = np
         ARRAY_TYPE = np.ndarray
         HINT_TYPE = _hint_ndarray
+
+        def move(self, value: tx.Any) -> tx.Any:
+            """Compute a lazy array, and copy a device array to the host."""
+            return to_host(value)
 
     __all__ += ["ToDType", "ToNDArray"]

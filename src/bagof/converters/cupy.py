@@ -6,7 +6,7 @@ __all__: list = []
 import typing_extensions as tx
 
 # locals
-from ._arrays import ArrayConverter
+from ._arrays import ArrayConverter, compute
 from ._lazy import has_module, lazy_import
 
 if tx.TYPE_CHECKING:
@@ -29,11 +29,20 @@ if tx.TYPE_CHECKING or has_module("cupy"):  # pragma: no cover
             tx.ForwardRef("bagof.hints.cupy.ndarray"),
         ),
     ):
-        """Converter for [`cupy.ndarray`][]."""
+        """
+        Converter for [`cupy.ndarray`][].
+
+        A lazy (dask) array is computed, and a host (numpy) array is
+        copied to the device, so that an array of any library converts.
+        """
 
         DEFAULT = lazy_import("cupy:ndarray")
         ARRAY = SCALARS = lazy_import("cupy")
         ARRAY_TYPE = lazy_import("cupy:ndarray")
         HINT_TYPE = lazy_import("bagof.hints.cupy:ndarray")
+
+        def move(self, value: tx.Any) -> tx.Any:
+            """Compute a lazy array (``cupy.asanyarray`` does the rest)."""
+            return compute(value)
 
     __all__ += ["ToCupyArray"]

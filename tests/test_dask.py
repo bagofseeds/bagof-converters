@@ -55,3 +55,41 @@ def test_dask_like() -> None:
 
 def test_dask_is_registered() -> None:
     assert Converter.get_class(da.Array) is converters_dask.ToDaskArray
+
+
+def test_dask_shape_broadcast() -> None:
+    hints_dask = pytest.importorskip("bagof.hints.dask")
+    hint = hints_dask.Array[
+        tx.Tuple[tx.Literal[2], tx.Literal[3]], hints_dask.dtype[np.float64]
+    ]
+    result = Converter.get(hint)([1, 2, 3])
+    assert isinstance(result, da.Array)
+    assert result.shape == (2, 3)
+    assert result.compute().tolist() == [[1, 2, 3], [1, 2, 3]]
+
+
+def test_dask_shape_squeeze() -> None:
+    hints_dask = pytest.importorskip("bagof.hints.dask")
+    hint = hints_dask.Array[tx.Tuple[tx.Literal[3]], tx.Any]
+    result = Converter.get(hint)(da.ones((1, 1, 3)))
+    assert isinstance(result, da.Array)
+    assert result.shape == (3,)
+
+
+def test_dask_shape_mismatch() -> None:
+    from bagof.converters.exceptions import ValueConversionError
+
+    hints_dask = pytest.importorskip("bagof.hints.dask")
+    hint = hints_dask.Array[tx.Tuple[tx.Literal[2]], tx.Any]
+    with pytest.raises(ValueConversionError):
+        Converter.get(hint)([1, 2, 3])
+
+
+def test_dask_shape_unknown_size_is_accepted() -> None:
+    # A dask array may not know its size until it is computed.
+    hints_dask = pytest.importorskip("bagof.hints.dask")
+    hint = hints_dask.Array[tx.Tuple[tx.Literal[2]], tx.Any]
+    arr = da.from_array(np.arange(4), chunks=2)
+    arr = arr[arr > 1]
+    assert arr.shape[0] != arr.shape[0]  # nan
+    assert Converter.get(hint)(arr) is arr
