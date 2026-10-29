@@ -1,3 +1,6 @@
+# stdlib
+import sys
+
 # dependencies
 import pytest
 import typing_extensions as tx
@@ -159,4 +162,208 @@ def test_ndarray_unparametrised_dtype_leaves_the_dtype_alone() -> None:
     hint = pytest.importorskip("bagof.hints.numpy").ndarray[tx.Any, np.dtype]
     result = Converter.get(hint)([1, 2, 3])
     assert isinstance(result, np.ndarray)
+    assert np.issubdtype(result.dtype, np.integer)
+
+
+# --- ToNDArray: arrays of other libraries -----------------------------
+
+
+class FakeCupyArray:
+    """
+    A stand-in for a cupy array: it exposes the CUDA array interface,
+    copies itself to the host with ``get()``, and -- like cupy -- refuses
+    an implicit conversion to numpy.
+    """
+
+    def __init__(self, array: tx.Any) -> None:
+        self.array = np.asarray(array)
+
+    @property
+    def __cuda_array_interface__(self) -> dict:
+        return {}
+
+    def get(self) -> tx.Any:
+        return self.array
+
+    def __array__(self, *args, **kwargs) -> tx.Any:
+        raise TypeError(
+            "Implicit conversion to a NumPy array is not allowed."
+        )
+
+
+class FakeDaskArray:
+    """A stand-in for a dask array (the dask collection protocol)."""
+
+    def __init__(self, result: tx.Any) -> None:
+        self.result = result
+
+    def __dask_graph__(self) -> dict:
+        return {}
+
+    def compute(self) -> tx.Any:
+        return self.result
+
+
+def test_ndarray_from_device_array() -> None:
+    result = converters_numpy.ToNDArray()(FakeCupyArray([1, 2, 3]))
+    assert isinstance(result, np.ndarray)
+    assert result.tolist() == [1, 2, 3]
+
+
+def test_ndarray_from_device_array_with_dtype() -> None:
+    result = Converter.get(NDArray[np.float32])(FakeCupyArray([1, 2, 3]))
+    assert result.dtype == np.dtype("float32")
+
+
+def test_ndarray_from_lazy_array() -> None:
+    lazy = FakeDaskArray(np.array([1, 2, 3]))
+    assert converters_numpy.ToNDArray()(lazy).tolist() == [1, 2, 3]
+
+
+def test_ndarray_from_lazy_device_array() -> None:
+    # A dask array of cupy chunks computes to a cupy array, which must
+    # then be copied to the host.
+    lazy = FakeDaskArray(FakeCupyArray([1, 2, 3]))
+    assert converters_numpy.ToNDArray()(lazy).tolist() == [1, 2, 3]
+
+
+def test_ndarray_from_device_array_without_a_copy_method() -> None:
+    # A device array that has no known way to the host fails as it would
+    # have without the move, as a conversion error.
+    from bagof.converters.exceptions import ConversionError
+
+    class Opaque(FakeCupyArray):
+        get = None  # type: ignore[assignment]
+
+    with pytest.raises(ConversionError):
+        converters_numpy.ToNDArray()(Opaque([1, 2, 3]))
+
+
+def test_ndarray_from_real_dask_array_of_device_chunks() -> None:
+    da = pytest.importorskip("dask.array")
+    # One chunk: dask concatenates several with numpy, which the stand-in
+    # does not support (real cupy chunks dispatch to cupy).
+    lazy = da.from_array(np.arange(4.0), chunks=4).map_blocks(
+        FakeCupyArray, meta=np.array([])
+    )
+    result = converters_numpy.ToNDArray()(lazy)
+    assert isinstance(result, np.ndarray)
+    assert result.tolist() == [0.0, 1.0, 2.0, 3.0]
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        (1, 1),
+        ([1, 2], [1, 2]),
+        (FakeCupyArray([1, 2]), [1, 2]),
+    ],
+)
+def test_to_host(value: tx.Any, expected: tx.Any) -> None:
+    from bagof.converters._arrays import to_host
+
+    result = to_host(value)
+    assert np.asarray(result).tolist() == expected
+
+
+def test_compute_leaves_device_arrays_alone() -> None:
+    from bagof.converters._arrays import compute
+
+    device = FakeCupyArray([1])
+    assert compute(device) is device
+    assert compute(FakeDaskArray(device)) is device
+
+
+# --- ToNDArray: shape hints -------------------------------------------
+
+ndarray = pytest.importorskip("bagof.hints.numpy").ndarray
+hints_dtype_ = pytest.importorskip("bagof.hints.numpy").dtype
+L = tx.Literal
+
+
+def _shaped(*shape: tx.Any) -> tx.Any:
+    return ndarray[tx.Tuple[shape], hints_dtype_[np.float64]]
+
+
+@pytest.mark.parametrize(
+    "hint,value,shape",
+    [
+        # matching shapes pass
+        (_shaped(L[4], L[4]), np.eye(4), (4, 4)),
+        (_shaped(int, int), np.ones((2, 5)), (2, 5)),
+        (_shaped(L[1, 3]), [1.0], (1,)),
+        # left-pad with singleton dimensions
+        (_shaped(int, int), [1.0, 2.0, 3.0], (1, 3)),
+        (_shaped(int, int, int), 1.0, (1, 1, 1)),
+        # broadcast singletons to a Literal size
+        (_shaped(L[4], L[4]), 1.0, (4, 4)),
+        (_shaped(L[4], L[4]), [1.0, 2.0, 3.0, 4.0], (4, 4)),
+        (_shaped(int, L[3]), np.ones((5, 1)), (5, 3)),
+        # variadic shapes
+        (_shaped(L[3], ...), np.ones((1, 3)), (3, 3)),
+        (
+            _shaped(tx.Unpack[tx.Tuple[int, ...]], L[3]),
+            np.ones((2, 5, 1)),
+            (2, 5, 3),
+        ),
+        (_shaped(tx.Unpack[tx.Tuple[int, ...]], L[3]), 1.0, (3,)),
+    ],
+)
+def test_ndarray_shape(hint: tx.Any, value: tx.Any, shape: tx.Any) -> None:
+    result = Converter.get(hint)(value)
+    assert isinstance(result, np.ndarray)
+    assert result.shape == shape
+    assert result.dtype == np.dtype("float64")
+
+
+def test_ndarray_broadcast_keeps_the_values() -> None:
+    result = Converter.get(_shaped(L[2], L[3]))([1.0, 2.0, 3.0])
+    assert result.tolist() == [[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]
+
+
+def test_ndarray_matching_shape_is_not_copied() -> None:
+    arr = np.eye(4)
+    assert Converter.get(_shaped(L[4], L[4]))(arr) is arr
+
+
+@pytest.mark.parametrize(
+    "hint,value",
+    [
+        (_shaped(L[4], L[4]), np.ones(3)),
+        (_shaped(L[4], L[4]), np.ones((2, 4, 4))),
+        (_shaped(int), np.ones((2, 2))),
+        (_shaped(L[2, 3]), [1.0]),
+    ],
+)
+def test_ndarray_shape_mismatch(hint: tx.Any, value: tx.Any) -> None:
+    from bagof.converters.exceptions import ValueConversionError
+
+    with pytest.raises(ValueConversionError, match="shape"):
+        Converter.get(hint)(value)
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="numpy types subscript from 3.9"
+)
+def test_ndarray_shape_and_subclass() -> None:
+    class MyArray(np.ndarray):
+        pass
+
+    result = Converter.get(MyArray[tx.Tuple[L[2]], tx.Any])(1)
+    assert isinstance(result, MyArray)
+    assert result.shape == (2,)
+
+
+def test_ndarray_shape_from_device_array() -> None:
+    result = Converter.get(_shaped(L[2], L[2]))(FakeCupyArray([1.0, 2.0]))
+    assert result.tolist() == [[1.0, 2.0], [1.0, 2.0]]
+
+
+@pytest.mark.parametrize(
+    "hint", [NDArray, ndarray[tx.Any, hints_dtype_[tx.Any]]]
+)
+def test_ndarray_unbound_dtype_leaves_the_dtype_alone(hint: tx.Any) -> None:
+    # A `TypeVar` (the bare `NDArray` alias) or `Any` names no scalar type.
+    result = Converter.get(hint)([1, 2])
+    assert result.tolist() == [1, 2]
     assert np.issubdtype(result.dtype, np.integer)

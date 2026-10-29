@@ -27,7 +27,12 @@ if tx.TYPE_CHECKING or has_module("dask"):
             tx.ForwardRef("bagof.hints.dask.Array"),
         ),
     ):
-        """Converter for [`dask.array.Array`][]."""
+        """
+        Converter for [`dask.array.Array`][].
+
+        An array of another library is wrapped as it is: a cupy array
+        becomes a dask array of cupy chunks, and stays on the device.
+        """
 
         DEFAULT = lazy_import("dask.array:Array")
         ARRAY = lazy_import("dask.array")
