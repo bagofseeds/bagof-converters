@@ -1,5 +1,6 @@
 # stdlib
 import numbers
+import sys
 
 # dependencies
 import pytest
@@ -351,7 +352,7 @@ def test_like_is_reentrant_safe() -> None:
 def test_like_without_numpy_returns_the_bare_hint(
     monkeypatch: tx.Any,
 ) -> None:
-    """With no array library installed, `like` is just the numeric hint."""
-    monkeypatch.setattr(conv_numbers, "np", None)
+    """Before numpy is imported, `like` is just the numeric hint."""
+    monkeypatch.setitem(sys.modules, "numpy", None)
     assert Converter.get(numbers.Integral).like() is numbers.Integral
     assert Converter.get(int).like() is int

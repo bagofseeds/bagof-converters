@@ -15,12 +15,3 @@ else:
         from types import UnionType
     except ImportError:  # pragma: no cover
         UnionType = tx.Union  # type: ignore[assignment]
-
-if tx.TYPE_CHECKING:
-    import numpy as np
-
-else:
-    try:
-        import numpy as np
-    except ImportError:  # pragma: no cover
-        np = None  # type: ignore[assignment]

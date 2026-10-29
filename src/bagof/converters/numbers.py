@@ -17,6 +17,7 @@ __all__ = [
 # stdlib
 import inspect
 import numbers
+import sys
 
 # dependencies
 import typing_extensions as tx
@@ -26,7 +27,6 @@ from bagof.core.magic import UNSET, safe_isinstance, safe_issubclass
 from bagof.hints.typevars.co import NUMBER
 
 # locals
-from ._compat import np
 from .base import Converter, _process_reentrant, _trywrap_converter
 
 
@@ -59,6 +59,9 @@ class ToNumber(Converter[NUMBER, tx.Any], register=numbers.Number):
             return self.hint
 
         fallback = self.unwrapped
+        # numpy scalars only exist once numpy has been imported (by
+        # someone else: it is not imported here).
+        np = sys.modules.get("numpy")
         if np is not None:
             if safe_issubclass(fallback, numbers.Integral):
                 return tx.Union[numbers.Integral, np.integer, np.bool_]
