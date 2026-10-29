@@ -8,7 +8,7 @@ import textwrap
 # dependencies
 import pytest
 
-BACKENDS = ("dask", "dask.array", "cupy", "pandas")
+BACKENDS = ("numpy", "dask", "dask.array", "cupy", "pandas")
 
 
 def _run(code: str) -> str:
@@ -46,6 +46,7 @@ def test_all_lists_installed_backend_converters() -> None:
     import bagof.converters
 
     expected = {
+        "numpy": ["ToDType", "ToNDArray"],
         "dask": ["ToDaskArray"],
         "cupy": ["ToCupyArray"],
         "pandas": ["ToDataFrame", "ToSeries"],
@@ -56,6 +57,44 @@ def test_all_lists_installed_backend_converters() -> None:
         for name in names:
             assert name in bagof.converters.__all__
             assert hasattr(bagof.converters, name)
+
+
+def test_numpy_converters_resolve_after_late_import() -> None:
+    pytest.importorskip("numpy")
+    out = _run("""
+        from bagof.converters import Converter, ToDType, ToNDArray
+        import numpy as np
+        assert Converter.get_class(np.dtype) is ToDType
+        assert Converter.get_class(np.float32) is ToDType
+        assert Converter.get_class(np.ndarray) is ToNDArray
+        print(Converter.get(np.ndarray)([1, 2]).tolist(),
+              Converter.get(np.dtype)("float32"))
+    """)
+    assert out.strip() == "[1, 2] float32"
+
+
+def test_numpy_hint_resolves_after_late_import() -> None:
+    pytest.importorskip("numpy")
+    out = _run("""
+        from bagof.converters import Converter
+        from bagof.hints.numpy import NDArray
+        x = Converter.get(NDArray[float])([1, 2])
+        print(type(x).__module__, x.dtype)
+    """)
+    assert out.strip() == "numpy float64"
+
+
+def test_numbers_accept_numpy_scalars_after_late_import() -> None:
+    pytest.importorskip("numpy")
+    out = _run("""
+        import numbers
+        import typing
+        from bagof.converters import Converter
+        import numpy as np
+        expected = typing.Union[numbers.Integral, np.integer, np.bool_]
+        print(Converter.get(int).like() == expected)
+    """)
+    assert out.strip() == "True"
 
 
 def test_dask_converters_resolve_after_late_import() -> None:

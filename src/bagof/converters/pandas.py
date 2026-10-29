@@ -5,8 +5,10 @@ __all__: list = []
 # dependencies
 import typing_extensions as tx
 
+# bags
+from bagof.core.magic import has_module, lazy_import
+
 # locals
-from ._lazy import has_module, lazy_import
 from .base import Converter
 
 if tx.TYPE_CHECKING:
@@ -36,7 +38,7 @@ if tx.TYPE_CHECKING or has_module("pandas"):
             [`pandas.DataFrame`][] constructor.
         """
 
-        DEFAULT = lazy_import("pandas:DataFrame")
+        DEFAULT = lazy_import("pandas.DataFrame")
 
         def like(self, __reentrant: tuple = ()) -> tx.Any:
             """A frame, a mapping of columns, or an iterable of rows."""
@@ -56,7 +58,7 @@ if tx.TYPE_CHECKING or has_module("pandas"):
         the [`pandas.Series`][] constructor.
         """
 
-        DEFAULT = lazy_import("pandas:Series")
+        DEFAULT = lazy_import("pandas.Series")
 
         def like(self, __reentrant: tuple = ()) -> tx.Any:
             """A series, an iterable of values, or a mapping."""
