@@ -68,6 +68,14 @@ def test_dask_shape_broadcast() -> None:
     assert result.compute().tolist() == [[1, 2, 3], [1, 2, 3]]
 
 
+def test_dask_shape_squeeze() -> None:
+    hints_dask = pytest.importorskip("bagof.hints.dask")
+    hint = hints_dask.Array[tx.Tuple[tx.Literal[3]], tx.Any]
+    result = Converter.get(hint)(da.ones((1, 1, 3)))
+    assert isinstance(result, da.Array)
+    assert result.shape == (3,)
+
+
 def test_dask_shape_mismatch() -> None:
     from bagof.converters.exceptions import ValueConversionError
 

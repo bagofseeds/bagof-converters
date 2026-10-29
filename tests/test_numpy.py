@@ -299,6 +299,11 @@ def _shaped(*shape: tx.Any) -> tx.Any:
         (_shaped(L[4], L[4]), 1.0, (4, 4)),
         (_shaped(L[4], L[4]), [1.0, 2.0, 3.0, 4.0], (4, 4)),
         (_shaped(int, L[3]), np.ones((5, 1)), (5, 3)),
+        # strip extra leading singleton dimensions
+        (_shaped(L[4], L[4]), np.ones((1, 4, 4)), (4, 4)),
+        (_shaped(int), np.ones((1, 1, 3)), (3,)),
+        (_shaped(L[2], L[2]), np.ones((1, 1, 1)), (2, 2)),
+        (_shaped(), np.ones((1, 1)), ()),
         # variadic shapes
         (_shaped(L[3], ...), np.ones((1, 3)), (3, 3)),
         (
@@ -331,6 +336,7 @@ def test_ndarray_matching_shape_is_not_copied() -> None:
     [
         (_shaped(L[4], L[4]), np.ones(3)),
         (_shaped(L[4], L[4]), np.ones((2, 4, 4))),
+        (_shaped(L[4], L[4]), np.ones((1, 2, 4, 4))),
         (_shaped(int), np.ones((2, 2))),
         (_shaped(L[2, 3]), [1.0]),
     ],
@@ -352,6 +358,13 @@ def test_ndarray_shape_and_subclass() -> None:
     result = Converter.get(MyArray[tx.Tuple[L[2]], tx.Any])(1)
     assert isinstance(result, MyArray)
     assert result.shape == (2,)
+
+
+def test_ndarray_squeeze_is_a_view() -> None:
+    arr = np.ones((1, 4, 4))
+    result = Converter.get(_shaped(L[4], L[4]))(arr)
+    assert result.shape == (4, 4)
+    assert np.shares_memory(result, arr)
 
 
 def test_ndarray_shape_from_device_array() -> None:

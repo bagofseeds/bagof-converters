@@ -146,6 +146,11 @@ def test_check(spec: ShapeSpec, shape: tx.Tuple[int, ...], ok: bool) -> None:
         (ShapeSpec(((4,), (4,))), (4,), (4, 4)),
         (ShapeSpec(((4,), (4,))), (4, 1), (4, 4)),
         (ShapeSpec((None, (3,))), (5, 1), (5, 3)),
+        # strip extra leading singletons
+        (ShapeSpec(((4,), (4,))), (1, 1, 4, 4), (4, 4)),
+        (ShapeSpec(((4,), (4,))), (1, 1, 1), (4, 4)),
+        (ShapeSpec((None,)), (1, 5), (5,)),
+        (ShapeSpec(), (1, 1), ()),
         # a singleton is kept where 1 is allowed
         (ShapeSpec(((1, 3),)), (1,), (1,)),
         # variadic: pad to the smallest number of dimensions only
@@ -167,6 +172,8 @@ def test_broadcast_shape(
     [
         (ShapeSpec(((4,), (4,))), (3,)),
         (ShapeSpec(((4,), (4,))), (2, 4, 4)),
+        (ShapeSpec(((4,), (4,))), (1, 2, 4, 4)),
+        (ShapeSpec((None,)), (5, 1)),
         # ambiguous: 1 could become 2 or 3
         (ShapeSpec(((2, 3),)), (1,)),
     ],

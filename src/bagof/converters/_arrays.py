@@ -236,13 +236,15 @@ class ArrayConverter(Converter[tx.Any, tx.Any]):
         return value
 
     def _to_shape(self, value: tx.Any, xp: tx.Any, shape: ShapeSpec) -> tx.Any:
-        # Left-pad with singleton dimensions, then broadcast.
+        # Left-pad with (or strip) singleton dimensions, then broadcast.
         try:
             target = shape.broadcast_shape(value.shape)
         except ValueError as e:
             raise self.value_error(value, str(e)) from None
         if len(target) > value.ndim:
             value = value[(None,) * (len(target) - value.ndim)]
+        elif len(target) < value.ndim:
+            value = value.reshape(value.shape[value.ndim - len(target):])
         if tuple(target) != tuple(value.shape):
             value = xp.broadcast_to(value, target)
         return value

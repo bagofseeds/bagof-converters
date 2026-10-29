@@ -105,6 +105,9 @@ class ShapeSpec:
         number of dimensions accepted, and each singleton dimension
         constrained to a single size is then expanded to that size.
 
+        A shape with more dimensions than accepted is first stripped of
+        its extra leading dimensions, if they are all singletons.
+
         Raises
         ------
         ValueError
@@ -112,11 +115,14 @@ class ShapeSpec:
         """
         original = tuple(shape)
         shape = (1,) * max(0, self.ndim - len(shape)) + original
-        if not self.accepts_ndim(len(shape)):
-            raise ValueError(
-                f"Cannot broadcast an array of shape {original} to "
-                f"{self}: too many dimensions."
-            )
+        if not self.variadic and len(shape) > self.ndim:
+            extra = len(shape) - self.ndim
+            if any(size != 1 for size in shape[:extra]):
+                raise ValueError(
+                    f"Cannot broadcast an array of shape {original} to "
+                    f"{self}: too many dimensions."
+                )
+            shape = shape[extra:]
         target = []
         for size, sizes in zip(shape, self.align(len(shape))):
             if _size_ok(size, sizes):
