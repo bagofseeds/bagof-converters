@@ -5,9 +5,11 @@ __all__: list = []
 # dependencies
 import typing_extensions as tx
 
+# bags
+from bagof.core.magic import has_module, lazy_import
+
 # locals
 from ._arrays import ArrayConverter, compute
-from ._lazy import has_module, lazy_import
 
 if tx.TYPE_CHECKING:
     # Import the bare module so mkdocstrings resolves the `cupy.*`
@@ -36,10 +38,10 @@ if tx.TYPE_CHECKING or has_module("cupy"):  # pragma: no cover
         copied to the device, so that an array of any library converts.
         """
 
-        DEFAULT = lazy_import("cupy:ndarray")
+        DEFAULT = lazy_import("cupy.ndarray")
         ARRAY = SCALARS = lazy_import("cupy")
-        ARRAY_TYPE = lazy_import("cupy:ndarray")
-        HINT_TYPE = lazy_import("bagof.hints.cupy:ndarray")
+        ARRAY_TYPE = lazy_import("cupy.ndarray")
+        HINT_TYPE = lazy_import("bagof.hints.cupy.ndarray")
 
         def move(self, value: tx.Any) -> tx.Any:
             """Compute a lazy array (``cupy.asanyarray`` does the rest)."""
